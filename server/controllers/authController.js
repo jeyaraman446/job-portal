@@ -3,8 +3,10 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { hashFile, extractSkills } = require('../utils/resumeParser');
 
-const sign = user =>
-  jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+const sign = user => {
+  const secret = process.env.JWT_SECRET || 'job_portal_fallback_jwt_secret_key_84920';
+  return jwt.sign({ id: user._id, role: user.role }, secret, { expiresIn: '7d' });
+};
 
 const publicUser = u => {
   const o = u.toObject ? u.toObject() : { ...u };
