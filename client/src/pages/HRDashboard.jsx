@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import api, { errMsg } from '../api/axios';
+import api, { errMsg, getFileUrl } from '../api/axios';
 import TagInput from '../components/TagInput';
 
 function CompanyModal({ company, onClose, onSaved }) {
@@ -384,7 +384,7 @@ export default function HRDashboard() {
               )}
               {company.idProofUrl && (
                 <a
-                  href={`/${company.idProofUrl}`}
+                  href={getFileUrl(company.idProofUrl)}
                   target="_blank"
                   rel="noreferrer"
                   className="id-proof-link"

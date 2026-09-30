@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import api, { errMsg } from '../api/axios';
+import api, { errMsg, getFileUrl } from '../api/axios';
 
 const STATUSES = ['applied', 'shortlisted', 'interview', 'rejected', 'hired'];
 
@@ -45,7 +45,7 @@ function CandidateModal({ app, job, onClose, onStatusChange, onFeedbackSave }) {
     setTimeout(() => setSavedNote(false), 3000);
   };
 
-  const resumeUrl = app.resumeUrl ? `/${app.resumeUrl}` : null;
+  const resumeUrl = app.resumeUrl ? getFileUrl(app.resumeUrl) : null;
   const required = job.requiredSkills || [];
 
   return (

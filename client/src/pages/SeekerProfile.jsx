@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api, { errMsg } from '../api/axios';
+import api, { errMsg, getFileUrl } from '../api/axios';
 import TagInput from '../components/TagInput';
 
 const blank = {
@@ -92,7 +92,7 @@ export default function SeekerProfile() {
   const num = v => (v === '' || isNaN(v) ? undefined : Number(v));
 
   // Build resume download URL
-  const resumeDownloadUrl = p.resumeUrl ? `/${p.resumeUrl}` : null;
+  const resumeDownloadUrl = p.resumeUrl ? getFileUrl(p.resumeUrl) : null;
 
   return (
     <div className="stack profile-page">
