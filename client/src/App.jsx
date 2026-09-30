@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, NavLink } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import api from './api/axios';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import VerifyOtp from './pages/VerifyOtp';
@@ -19,6 +21,21 @@ function Guard({ role, children }) {
 
 export default function App() {
   const { user, logout } = useAuth();
+  const [theme, setTheme] = useState(() => localStorage.getItem('app_theme') || 'light');
+  const [smtpStatus, setSmtpStatus] = useState(null);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('app_theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    api.get('/auth/smtp-status')
+      .then(r => setSmtpStatus(r.data))
+      .catch(() => {});
+  }, []);
+
+  const toggleTheme = () => setTheme(t => (t === 'light' ? 'dark' : 'light'));
   const home = !user ? '/login' : user.role === 'hr' ? '/hr' : '/jobs';
 
   return (
@@ -27,14 +44,20 @@ export default function App() {
         <div className="brand-group">
           <NavLink to="/" className="brand-logo">
             <span className="brand-icon">⚡</span>
-            <span className="brand-title">SmartMatch</span>
-            <span className="brand-sub">Job Portal</span>
+            <div className="brand-text">
+              <span className="brand-title">SmartMatch</span>
+              <span className="brand-sub">Enterprise Portal</span>
+            </div>
           </NavLink>
           {user && (
             <span className={`role-badge ${user.role === 'hr' ? 'role-hr' : 'role-seeker'}`}>
               {user.role === 'hr' ? '🏢 HR & Recruiter' : '👤 Candidate'}
             </span>
           )}
+          <span className="smtp-nav-badge" title="Transactional mail powered by Nodemailer & Brevo (Bravo) SMTP">
+            <span className="smtp-dot"></span>
+            Brevo SMTP Secure
+          </span>
         </div>
 
         <nav>
@@ -58,6 +81,16 @@ export default function App() {
               <NavLink to="/register" className="nav-btn-highlight">Create Account</NavLink>
             </>
           )}
+
+          <button
+            type="button"
+            className="theme-toggle-btn"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
+            aria-label="Toggle dark/light mode"
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
 
           {user && (
             <div className="user-menu">

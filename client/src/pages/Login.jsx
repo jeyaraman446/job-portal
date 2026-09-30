@@ -83,6 +83,10 @@ export default function Login() {
           New to Smart Job Portal? <Link to="/register">Create an account</Link>
         </p>
 
+        <div className="smtp-security-seal">
+          <span>🔒 Protected by Nodemailer & Brevo (Bravo) Enterprise SMTP Relay</span>
+        </div>
+
         <div className="demo-accounts-box">
           <p className="demo-title">⚡ Quick Demo One-Click Fill:</p>
           <div className="demo-buttons">

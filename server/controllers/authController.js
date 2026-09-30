@@ -15,7 +15,7 @@ const publicUser = u => {
 };
 
 const { isValidEmail, isCompanyEmail, extractEmailDomain } = require('../utils/emailValidator');
-const { generateOtp, sendVerificationEmail, sendPasswordResetEmail } = require('../utils/mailer');
+const { generateOtp, sendVerificationEmail, sendPasswordResetEmail, getSmtpStatus } = require('../utils/mailer');
 
 exports.register = async (req, res) => {
   try {
@@ -315,3 +315,8 @@ exports.uploadResume = async (req, res) => {
     res.status(500).json({ message: e.message });
   }
 };
+
+exports.getSmtpStatus = (req, res) => {
+  res.json(getSmtpStatus());
+};
+

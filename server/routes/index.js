@@ -13,6 +13,7 @@ router.post('/auth/resend-otp', auth.resendOtp);
 router.post('/auth/forgot-password', auth.forgotPassword);
 router.post('/auth/reset-password', auth.resetPassword);
 router.get('/auth/me', protect, auth.me);
+router.get('/auth/smtp-status', auth.getSmtpStatus);
 
 router.post('/company', protect, allow('hr'), upload.single('idProof'), company.registerCompany);
 router.put('/company', protect, allow('hr'), upload.single('idProof'), company.updateCompany);

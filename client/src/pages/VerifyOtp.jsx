@@ -20,6 +20,7 @@ export default function VerifyOtp() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [timer, setTimer] = useState(60);
+  const [showTips, setShowTips] = useState(false);
 
   const inputRefs = useRef([]);
 
@@ -102,7 +103,7 @@ export default function VerifyOtp() {
 
     try {
       const res = await verifyOtp(email, fullOtp);
-      setSuccess(res.message || 'Email successfully verified! Redirecting…');
+      setSuccess(res.message || 'Email successfully verified! Redirecting to your dashboard…');
       setTimeout(() => {
         if (res.user?.role === 'hr' || roleState === 'hr') {
           nav('/hr');
@@ -130,7 +131,7 @@ export default function VerifyOtp() {
 
     try {
       const res = await resendOtp(email, 'verify_email');
-      setSuccess(res.message || 'A fresh verification code has been dispatched to your email.');
+      setSuccess(res.message || 'A fresh verification code has been dispatched via Brevo SMTP.');
       setTimer(60);
       setOtpDigits(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
@@ -144,17 +145,35 @@ export default function VerifyOtp() {
   return (
     <div className="auth-container">
       <div className="card narrow auth-card otp-card-container">
+        {/* Visual Stepper */}
+        <div className="auth-stepper">
+          <div className="stepper-step completed">
+            <span className="step-circle">✓</span>
+            <span className="step-title">Account</span>
+          </div>
+          <div className="stepper-line active"></div>
+          <div className="stepper-step active">
+            <span className="step-circle">2</span>
+            <span className="step-title">Email OTP</span>
+          </div>
+          <div className="stepper-line"></div>
+          <div className="stepper-step">
+            <span className="step-circle">3</span>
+            <span className="step-title">Portal</span>
+          </div>
+        </div>
+
         <div className="auth-header">
           <div className="auth-icon-badge otp-icon">🛡️</div>
           <h1>Verify Your Email</h1>
           <p className="muted">
-            We sent a 6-digit verification code to
+            We dispatched a 6-digit security code to your inbox
           </p>
           <div className="email-target-chip">
             <strong>{email || 'your registered email'}</strong>
           </div>
           <span className={`role-pill ${roleState === 'hr' ? 'hr' : 'seeker'}`}>
-            {roleState === 'hr' ? '🏢 HR / Employer Verification' : '👤 Candidate Email Verification'}
+            {roleState === 'hr' ? '🏢 HR Corporate Verification' : '👤 Candidate Email Verification'}
           </span>
         </div>
 
@@ -165,7 +184,7 @@ export default function VerifyOtp() {
           <span className="notice-mail-icon">📬</span>
           <div>
             <strong>Check your Gmail / Email Inbox:</strong>
-            <p>Your one-time passcode was sent to <strong>{email}</strong>. Open your email to retrieve the code. If not found in 1 minute, check your Spam / Promotions folder.</p>
+            <p>Your verification code was sent via <strong>Brevo (Bravo) SMTP</strong>. Enter the 6 digits below. Code expires in 10 minutes.</p>
           </div>
         </div>
 
@@ -208,15 +227,23 @@ export default function VerifyOtp() {
             className="primary full-width"
             disabled={loading || otpDigits.join('').length !== 6}
           >
-            {loading ? 'Verifying Code…' : 'Verify & Continue'}
+            {loading ? 'Verifying Code…' : 'Verify & Continue ➔'}
           </button>
         </form>
 
         <div className="otp-resend-section">
           {timer > 0 ? (
-            <p className="resend-countdown muted">
-              ⏱️ Resend code available in <strong>{timer}s</strong>
-            </p>
+            <div className="timer-wrapper">
+              <div className="timer-bar-track">
+                <div
+                  className="timer-bar-fill"
+                  style={{ width: `${(timer / 60) * 100}%` }}
+                ></div>
+              </div>
+              <p className="resend-countdown muted">
+                ⏱️ Resend available in <strong>{timer}s</strong>
+              </p>
+            </div>
           ) : (
             <p className="resend-action">
               Didn't receive the email?{' '}
@@ -232,10 +259,34 @@ export default function VerifyOtp() {
           )}
         </div>
 
+        <div className="troubleshoot-toggle">
+          <button
+            type="button"
+            className="troubleshoot-btn"
+            onClick={() => setShowTips(s => !s)}
+          >
+            {showTips ? '▲ Hide delivery tips' : '▼ Didn\'t receive the email? Delivery tips'}
+          </button>
+          {showTips && (
+            <div className="troubleshoot-card">
+              <ul>
+                <li>Check your <strong>Spam</strong>, <strong>Junk</strong>, or <strong>Promotions</strong> folder.</li>
+                <li>Search for <strong>"Smart Job Portal"</strong> in your email client search bar.</li>
+                <li>Wait 30-60 seconds for SMTP delivery queues.</li>
+                <li>Ensure your email was spelled correctly: <code>{email}</code></li>
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className="smtp-security-seal">
+          <span>🔒 Secured via Brevo (Bravo) High-Deliverability SMTP Relay • TLS 1.3</span>
+        </div>
+
         <div className="otp-footer-links">
           <Link to="/login" className="muted-link">← Return to Login</Link>
           <span className="dot-divider">•</span>
-          <Link to="/register" className="muted-link">Register with another email</Link>
+          <Link to="/register" className="muted-link">Register another account</Link>
         </div>
       </div>
     </div>

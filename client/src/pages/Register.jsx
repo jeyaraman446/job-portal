@@ -145,6 +145,10 @@ export default function Register() {
         <p className="muted auth-footer-text">
           Already registered? <Link to="/login">Log in here</Link>
         </p>
+
+        <div className="smtp-security-seal">
+          <span>🔒 Real-time 6-digit OTP dispatched via Brevo (Bravo) SMTP Relay</span>
+        </div>
       </form>
     </div>
   );

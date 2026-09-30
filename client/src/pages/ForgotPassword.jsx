@@ -82,7 +82,7 @@ export default function ForgotPassword() {
 
     try {
       const res = await forgotPassword(email.trim());
-      setSuccess(res.message || 'Password reset passcode has been sent to your email.');
+      setSuccess(res.message || 'Password reset passcode dispatched via Brevo SMTP.');
       setStep(2);
       setTimer(60);
       setTimeout(() => inputRefs.current[0]?.focus(), 100);
@@ -133,7 +133,7 @@ export default function ForgotPassword() {
 
     try {
       const res = await resendOtp(email.trim(), 'reset_password');
-      setSuccess(res.message || 'A new password reset code has been sent.');
+      setSuccess(res.message || 'A new password reset code has been sent via Brevo.');
       setTimer(60);
       setOtpDigits(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
@@ -144,33 +144,45 @@ export default function ForgotPassword() {
     }
   };
 
-  // Password strength score
-  const getPasswordStrength = pwd => {
-    if (!pwd) return { score: 0, label: '', color: '' };
-    let s = 0;
-    if (pwd.length >= 6) s++;
-    if (pwd.length >= 10) s++;
-    if (/[A-Z]/.test(pwd)) s++;
-    if (/[0-9]/.test(pwd)) s++;
-    if (/[^A-Za-z0-9]/.test(pwd)) s++;
+  // Password rules evaluation
+  const hasMinLen = newPassword.length >= 6;
+  const hasUpper = /[A-Z]/.test(newPassword);
+  const hasNum = /[0-9]/.test(newPassword);
+  const hasSpecial = /[^A-Za-z0-9]/.test(newPassword);
+  const passMatch = newPassword && confirmPassword && newPassword === confirmPassword;
 
-    if (s <= 2) return { score: 1, label: 'Weak', color: '#ef4444' };
-    if (s <= 3) return { score: 2, label: 'Medium', color: '#f59e0b' };
-    return { score: 3, label: 'Strong', color: '#10b981' };
-  };
-
-  const strength = getPasswordStrength(newPassword);
+  const score = [hasMinLen, hasUpper, hasNum, hasSpecial].filter(Boolean).length;
+  const strengthLabel = score <= 1 ? 'Weak' : score <= 3 ? 'Medium' : 'Strong';
+  const strengthColor = score <= 1 ? '#ef4444' : score <= 3 ? '#f59e0b' : '#10b981';
 
   return (
     <div className="auth-container">
       <div className="card narrow auth-card forgot-card-container">
+        {/* Progress Stepper */}
+        <div className="auth-stepper">
+          <div className={`stepper-step ${step > 1 ? 'completed' : 'active'}`}>
+            <span className="step-circle">{step > 1 ? '✓' : '1'}</span>
+            <span className="step-title">Lookup</span>
+          </div>
+          <div className={`stepper-line ${step >= 2 ? 'active' : ''}`}></div>
+          <div className={`stepper-step ${step === 2 ? 'active' : step > 2 ? 'completed' : ''}`}>
+            <span className="step-circle">{step > 2 ? '✓' : '2'}</span>
+            <span className="step-title">Reset OTP</span>
+          </div>
+          <div className={`stepper-line ${step === 3 ? 'active' : ''}`}></div>
+          <div className={`stepper-step ${step === 3 ? 'active' : ''}`}>
+            <span className="step-circle">3</span>
+            <span className="step-title">Ready</span>
+          </div>
+        </div>
+
         {step === 1 && (
           <>
             <div className="auth-header">
               <div className="auth-icon-badge">🔑</div>
               <h1>Reset Your Password</h1>
               <p className="muted">
-                Enter your registered email address (candidate or HR work email), and we will send a 6-digit recovery passcode.
+                Enter your registered candidate or corporate HR email address to receive a secure recovery code via Brevo SMTP.
               </p>
             </div>
 
@@ -190,12 +202,16 @@ export default function ForgotPassword() {
               </label>
 
               <button type="submit" className="primary full-width" disabled={loading}>
-                {loading ? 'Sending Passcode…' : 'Send Recovery Passcode'}
+                {loading ? 'Dispatching Passcode…' : 'Send Recovery Passcode ➔'}
               </button>
             </form>
 
+            <div className="smtp-security-seal">
+              <span>🔒 Brevo (Bravo) High-Deliverability Transactional Mail</span>
+            </div>
+
             <p className="muted auth-footer-text">
-              Remembered your password? <Link to="/login">Back to Log In</Link>
+              Remember your password? <Link to="/login">Back to Log In</Link>
             </p>
           </>
         )}
@@ -205,7 +221,7 @@ export default function ForgotPassword() {
             <div className="auth-header">
               <div className="auth-icon-badge">🛡️</div>
               <h1>Set New Password</h1>
-              <p className="muted">Enter the 6-digit code sent to</p>
+              <p className="muted">Enter the 6-digit recovery code sent to</p>
               <div className="email-target-chip">
                 <strong>{email}</strong>
               </div>
@@ -218,7 +234,7 @@ export default function ForgotPassword() {
               <span className="notice-mail-icon">📬</span>
               <div>
                 <strong>Check your Gmail / Email Inbox:</strong>
-                <p>We've sent a 6-digit password recovery code to <strong>{email}</strong>. Enter the passcode below to set your new password. Check your Spam folder if not received.</p>
+                <p>We've dispatched a 6-digit password recovery code to <strong>{email}</strong> via Brevo SMTP. Enter it below.</p>
               </div>
             </div>
 
@@ -244,7 +260,7 @@ export default function ForgotPassword() {
               </div>
 
               <label>
-                New Password <span className="muted-text">(Min 6 characters)</span>
+                New Password
                 <div className="password-input-group">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -265,15 +281,31 @@ export default function ForgotPassword() {
               </label>
 
               {newPassword && (
-                <div className="password-strength-container">
-                  <div className="strength-bars">
-                    <div className={`bar ${strength.score >= 1 ? 'active' : ''}`} style={{ backgroundColor: strength.score >= 1 ? strength.color : '' }} />
-                    <div className={`bar ${strength.score >= 2 ? 'active' : ''}`} style={{ backgroundColor: strength.score >= 2 ? strength.color : '' }} />
-                    <div className={`bar ${strength.score >= 3 ? 'active' : ''}`} style={{ backgroundColor: strength.score >= 3 ? strength.color : '' }} />
+                <div className="password-rules-box">
+                  <div className="strength-header">
+                    <span>Password Strength:</span>
+                    <strong style={{ color: strengthColor }}>{strengthLabel}</strong>
                   </div>
-                  <span className="strength-label" style={{ color: strength.color }}>
-                    Strength: <strong>{strength.label}</strong>
-                  </span>
+                  <div className="strength-bar-track">
+                    <div
+                      className="strength-bar-progress"
+                      style={{ width: `${(score / 4) * 100}%`, backgroundColor: strengthColor }}
+                    ></div>
+                  </div>
+                  <div className="rules-grid">
+                    <span className={`rule-chip ${hasMinLen ? 'valid' : ''}`}>
+                      {hasMinLen ? '✓' : '○'} 6+ Characters
+                    </span>
+                    <span className={`rule-chip ${hasUpper ? 'valid' : ''}`}>
+                      {hasUpper ? '✓' : '○'} Uppercase
+                    </span>
+                    <span className={`rule-chip ${hasNum ? 'valid' : ''}`}>
+                      {hasNum ? '✓' : '○'} Number
+                    </span>
+                    <span className={`rule-chip ${hasSpecial ? 'valid' : ''}`}>
+                      {hasSpecial ? '✓' : '○'} Symbol
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -288,20 +320,34 @@ export default function ForgotPassword() {
                 />
               </label>
 
+              {confirmPassword && (
+                <div className={`match-indicator ${passMatch ? 'match-good' : 'match-bad'}`}>
+                  {passMatch ? '✓ Passwords match perfectly' : '✕ Passwords do not match'}
+                </div>
+              )}
+
               <button
                 type="submit"
                 className="primary full-width"
-                disabled={loading || otpDigits.join('').length !== 6}
+                disabled={loading || otpDigits.join('').length !== 6 || !passMatch}
               >
-                {loading ? 'Updating Password…' : 'Save New Password & Sign In'}
+                {loading ? 'Updating Password…' : 'Save New Password & Sign In ➔'}
               </button>
             </form>
 
             <div className="otp-resend-section">
               {timer > 0 ? (
-                <p className="resend-countdown muted">
-                  ⏱️ Resend code in <strong>{timer}s</strong>
-                </p>
+                <div className="timer-wrapper">
+                  <div className="timer-bar-track">
+                    <div
+                      className="timer-bar-fill"
+                      style={{ width: `${(timer / 60) * 100}%` }}
+                    ></div>
+                  </div>
+                  <p className="resend-countdown muted">
+                    ⏱️ Resend code in <strong>{timer}s</strong>
+                  </p>
+                </div>
               ) : (
                 <p className="resend-action">
                   Didn't receive the passcode?{' '}
@@ -327,10 +373,12 @@ export default function ForgotPassword() {
 
         {step === 3 && (
           <div className="success-step-box">
-            <div className="celebration-icon">🎉</div>
-            <h2>Password Updated!</h2>
+            <div className="celebration-circle">
+              <span className="celebration-check">✓</span>
+            </div>
+            <h2>Password Successfully Updated!</h2>
             <p className="muted">
-              Your account password has been successfully reset. You are now logged in and can access your portal.
+              Your credentials have been securely updated via Brevo authenticated reset. You are now logged in and ready to access the portal.
             </p>
             <div className="success-actions">
               <button
@@ -338,7 +386,7 @@ export default function ForgotPassword() {
                 className="primary full-width"
                 onClick={() => nav('/jobs')}
               >
-                Go to Dashboard ➔
+                Continue to Portal Dashboard ➔
               </button>
             </div>
           </div>
