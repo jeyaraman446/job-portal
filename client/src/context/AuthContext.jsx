@@ -10,19 +10,70 @@ export function AuthProvider({ children }) {
   });
 
   const save = ({ token, user }) => {
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    setUser(user);
+    if (token) localStorage.setItem('token', token);
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+      setUser(user);
+    }
     return user;
   };
 
-  const login = async (email, password) => save((await api.post('/auth/login', { email, password })).data);
-  const register = async form => save((await api.post('/auth/register', form)).data);
+  const login = async (email, password) => {
+    const res = await api.post('/auth/login', { email, password });
+    if (res.data.token && res.data.user) save(res.data);
+    return res.data;
+  };
+
+  const register = async form => {
+    const res = await api.post('/auth/register', form);
+    if (res.data.token && res.data.user) save(res.data);
+    return res.data;
+  };
+
+  const verifyOtp = async (email, otp) => {
+    const res = await api.post('/auth/verify-otp', { email, otp });
+    if (res.data.token && res.data.user) save(res.data);
+    return res.data;
+  };
+
+  const resendOtp = async (email, purpose = 'verify_email') => {
+    const res = await api.post('/auth/resend-otp', { email, purpose });
+    return res.data;
+  };
+
+  const forgotPassword = async email => {
+    const res = await api.post('/auth/forgot-password', { email });
+    return res.data;
+  };
+
+  const resetPassword = async (email, otp, newPassword) => {
+    const res = await api.post('/auth/reset-password', { email, otp, newPassword });
+    if (res.data.token && res.data.user) save(res.data);
+    return res.data;
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
   };
 
-  return <AuthContext.Provider value={{ user, login, register, logout }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        setUser,
+        save,
+        login,
+        register,
+        verifyOtp,
+        resendOtp,
+        forgotPassword,
+        resetPassword,
+        logout,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }

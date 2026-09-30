@@ -33,8 +33,20 @@ export default function Register() {
 
     setLoading(true);
     try {
-      const u = await register(form);
-      nav(u.role === 'hr' ? '/hr' : '/profile');
+      const res = await register(form);
+      if (res?.requiresOtp) {
+        nav('/verify-otp', {
+          state: {
+            email: form.email,
+            role: form.role,
+            devOtp: res.devOtp,
+            message: res.message || 'Verification code sent to your email!',
+          },
+        });
+      } else {
+        const u = res.user || res;
+        nav(u?.role === 'hr' ? '/hr' : '/profile');
+      }
     } catch (err) {
       setError(errMsg(err));
     } finally {

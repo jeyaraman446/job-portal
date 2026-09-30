@@ -2,6 +2,8 @@ import { Routes, Route, Navigate, NavLink } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import VerifyOtp from './pages/VerifyOtp';
+import ForgotPassword from './pages/ForgotPassword';
 import SeekerProfile from './pages/SeekerProfile';
 import JobList from './pages/JobList';
 import MyApplications from './pages/MyApplications';
@@ -71,6 +73,8 @@ export default function App() {
           <Route path="/" element={<Navigate to={home} replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/verify-otp" element={<VerifyOtp />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
 
           {/* Candidate Routes */}
           <Route path="/jobs" element={<Guard role="seeker"><JobList /></Guard>} />

@@ -101,6 +101,11 @@ export default function SeekerProfile() {
           <h1>{p.name}</h1>
           <p className="profile-headline">{p.headline || 'Add a professional headline below'}</p>
           <div className="profile-meta-tags">
+            {p.email && (
+              <span className="profile-meta-pill verified-meta-pill" title="Candidate email address verified">
+                ✉️ {p.email} <strong className="verified-tick-small">✓ Verified</strong>
+              </span>
+            )}
             {p.location && <span>📍 {p.location}</span>}
             {p.experienceYears !== undefined && <span>💼 {p.experienceYears} Years Experience</span>}
             {p.skills?.length > 0 && <span>⚡ {p.skills.length} Technical Skills</span>}

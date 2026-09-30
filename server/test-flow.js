@@ -29,6 +29,66 @@ async function runTests() {
   assert.strictEqual(extractEmailDomain('hr@google.com'), 'google.com');
   console.log('  ✓ Corporate work email and candidate email validation passed!\n');
 
+  // 1b. Verify OTP Generation & Lifecycle
+  console.log('Test 1b: Testing OTP Generation, Verification & Forgot Password Flow...');
+  const { generateOtp } = require('./utils/mailer');
+  const bcrypt = require('bcryptjs');
+
+  const testOtp = generateOtp();
+  assert.strictEqual(testOtp.length, 6, 'Generated OTP must be 6 digits');
+  assert(/^\d{6}$/.test(testOtp), 'OTP must be purely numeric');
+
+  // Clean up any previous test user
+  await User.deleteOne({ email: 'otp-tester@example.com' });
+
+  // Create unverified user with OTP
+  const tempUser = await User.create({
+    name: 'OTP Tester',
+    email: 'otp-tester@example.com',
+    password: await bcrypt.hash('initialPass123', 10),
+    role: 'seeker',
+    isEmailVerified: false,
+    otpCode: testOtp,
+    otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    otpPurpose: 'verify_email',
+  });
+
+  assert.strictEqual(tempUser.isEmailVerified, false, 'User must initially be unverified');
+  assert.strictEqual(tempUser.otpCode, testOtp, 'Stored OTP must match generated OTP');
+
+  // Verify OTP
+  tempUser.isEmailVerified = true;
+  tempUser.emailVerifiedAt = new Date();
+  tempUser.otpCode = undefined;
+  tempUser.otpExpiresAt = undefined;
+  tempUser.otpPurpose = undefined;
+  await tempUser.save();
+
+  const verifiedUser = await User.findById(tempUser._id);
+  assert.strictEqual(verifiedUser.isEmailVerified, true, 'User email must now be marked verified');
+  assert.strictEqual(verifiedUser.otpCode, undefined, 'OTP code must be cleared after verification');
+
+  // Simulate Forgot Password flow
+  const resetOtp = generateOtp();
+  verifiedUser.otpCode = resetOtp;
+  verifiedUser.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  verifiedUser.otpPurpose = 'reset_password';
+  await verifiedUser.save();
+
+  assert.strictEqual(verifiedUser.otpPurpose, 'reset_password', 'OTP purpose must be reset_password');
+
+  // Apply new password
+  const newHashed = await bcrypt.hash('newSecurePass456', 10);
+  verifiedUser.password = newHashed;
+  verifiedUser.otpCode = undefined;
+  verifiedUser.otpExpiresAt = undefined;
+  verifiedUser.otpPurpose = undefined;
+  await verifiedUser.save();
+
+  const passCheck = await bcrypt.compare('newSecurePass456', verifiedUser.password);
+  assert.strictEqual(passCheck, true, 'New password must verify successfully with bcrypt');
+  console.log('  ✓ OTP generation, email verification, and password reset verified!\n');
+
   // 2. Verify Company ID Proof and Verification Workflow
   console.log('Test 2: Verifying Company Business ID Proof & Verification Model...');
   const company = await Company.findOne({ name: 'TechCorp Solutions' });

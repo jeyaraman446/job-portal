@@ -15,9 +15,21 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const u = await login(form.email, form.password);
-      nav(u.role === 'hr' ? '/hr' : '/jobs');
+      const res = await login(form.email, form.password);
+      const user = res.user || res;
+      nav(user.role === 'hr' ? '/hr' : '/jobs');
     } catch (err) {
+      if (err.response?.data?.requiresOtp) {
+        nav('/verify-otp', {
+          state: {
+            email: err.response.data.email || form.email,
+            role: err.response.data.role,
+            devOtp: err.response.data.devOtp,
+            message: err.response.data.message || 'Please verify your email address to continue.',
+          },
+        });
+        return;
+      }
       setError(errMsg(err));
     } finally {
       setLoading(false);
@@ -50,16 +62,19 @@ export default function Login() {
           />
         </label>
 
-        <label>
-          Password
-          <input
-            type="password"
-            required
-            placeholder="••••••••"
-            value={form.password}
-            onChange={e => setForm({ ...form, password: e.target.value })}
-          />
-        </label>
+        <div className="password-label-row">
+          <span>Password</span>
+          <Link to="/forgot-password" className="forgot-link">
+            Forgot password?
+          </Link>
+        </div>
+        <input
+          type="password"
+          required
+          placeholder="••••••••"
+          value={form.password}
+          onChange={e => setForm({ ...form, password: e.target.value })}
+        />
 
         <button className="primary" disabled={loading}>
           {loading ? 'Logging in…' : 'Log In'}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api, { errMsg, getFileUrl } from '../api/axios';
 import TagInput from '../components/TagInput';
 
@@ -284,6 +285,7 @@ function JobForm({ existingJob, onClose, onDone, isCompanyVerified }) {
 }
 
 export default function HRDashboard() {
+  const { user } = useAuth();
   const [company, setCompany] = useState(undefined);
   const [jobs, setJobs] = useState([]);
   const [showJobForm, setShowJobForm] = useState(false);
@@ -372,6 +374,11 @@ export default function HRDashboard() {
             </p>
 
             <div className="company-credentials-row">
+              {user?.email && (
+                <span className="cred-chip verified-chip" title="Corporate email verified via OTP">
+                  <strong>Corporate Email:</strong> {user.email} <span className="verified-tick-small">✓ Verified</span>
+                </span>
+              )}
               {company.taxId && (
                 <span className="cred-chip">
                   <strong>Tax / Reg ID:</strong> {company.taxId}

@@ -65,6 +65,8 @@ startxref
     password: hashedPassword,
     role: 'hr',
     phone: '+1 555-019-2834',
+    isEmailVerified: true,
+    emailVerifiedAt: new Date(),
   });
 
   // Create sample company ID proof PDF dummy file if not exists
@@ -164,6 +166,8 @@ startxref
     password: hashedPassword,
     role: 'seeker',
     phone: '+1 555-432-8765',
+    isEmailVerified: true,
+    emailVerifiedAt: new Date(),
     headline: 'Senior MERN Stack Engineer | Cloud Architect',
     location: 'San Jose, CA',
     github: 'https://github.com/arun-kumar-mern',
@@ -222,6 +226,8 @@ startxref
     password: hashedPassword,
     role: 'seeker',
     phone: '+1 555-876-1234',
+    isEmailVerified: true,
+    emailVerifiedAt: new Date(),
     headline: 'Frontend Engineer & UI/UX Specialist',
     location: 'Seattle, WA',
     github: 'https://github.com/priyasharma-ui',
@@ -267,6 +273,8 @@ startxref
     password: hashedPassword,
     role: 'seeker',
     phone: '+1 555-901-3456',
+    isEmailVerified: true,
+    emailVerifiedAt: new Date(),
     headline: 'Computer Science Graduate | Aspiring Full Stack Developer',
     location: 'Austin, TX',
     github: 'https://github.com/vikram-patel-cs',

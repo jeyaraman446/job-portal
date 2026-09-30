@@ -8,6 +8,10 @@ const apps = require('../controllers/applicationController');
 
 router.post('/auth/register', auth.register);
 router.post('/auth/login', auth.login);
+router.post('/auth/verify-otp', auth.verifyOtp);
+router.post('/auth/resend-otp', auth.resendOtp);
+router.post('/auth/forgot-password', auth.forgotPassword);
+router.post('/auth/reset-password', auth.resetPassword);
 router.get('/auth/me', protect, auth.me);
 
 router.post('/company', protect, allow('hr'), upload.single('idProof'), company.registerCompany);

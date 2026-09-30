@@ -10,6 +10,13 @@ const userSchema = new mongoose.Schema({
   isCompanyEmail: { type: Boolean, default: false },
   companyEmailDomain: String,
 
+  // Email Verification & OTP
+  isEmailVerified: { type: Boolean, default: false },
+  emailVerifiedAt: Date,
+  otpCode: String,
+  otpExpiresAt: Date,
+  otpPurpose: { type: String, enum: ['verify_email', 'reset_password'] },
+
   headline: String,
   location: String,
   github: String,

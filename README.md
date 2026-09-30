@@ -6,7 +6,14 @@ A complete, production-grade **MERN Stack Job Portal** designed to solve recruit
 
 ## 🚀 Key Highlights & Architecture
 
-### 1. 🛡️ Company Verification & Anti-Fraud Security
+### 1. 🔐 Email OTP Verification & Forgot Password Recovery
+- **6-Digit One-Time Passcode (OTP)**: Every new registration (both HR recruiters and candidate job seekers) generates and dispatches an authentic 6-digit OTP code to the user's email address.
+- **Enterprise HTML Email Templates**: Responsive, branded email layouts with security alerts, role badges, and clear 10-minute expiration countdowns.
+- **Dedicated Split-Input OTP Screen**: 6-digit auto-advancing input boxes, keyboard backspace handling, clipboard paste support, and 60-second resend cooldown timer.
+- **Self-Service Forgot Password Wizard**: Multi-step flow allowing users to verify ownership with an OTP and set a new password, complete with a real-time password strength meter.
+- **Developer/Demo Test Preview Helper**: Automatically exposes a "Dev/Local Preview OTP" badge with a 1-click "Auto-fill Code" button during development/testing so evaluations can be performed without requiring a live external SMTP mailbox.
+
+### 2. 🛡️ Company Verification & Anti-Fraud Security
 - **Corporate Work Email Required (`company@mail.com`)**: Recruiters and HR managers cannot register with personal public webmail (e.g. `@gmail.com`, `@yahoo.com`, `@hotmail.com`, `@outlook.com`). Only legitimate custom corporate domains are permitted.
 - **Valid Company ID Proof Upload**: Employers submit official legal documents (Certificate of Incorporation, Tax Registration / EIN / GSTIN, Commercial Business License, or Corporate ID Badge).
 - **Company Verification Workflow**:
