@@ -7,6 +7,8 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: { type: String, enum: ['seeker', 'hr', 'admin'], default: 'seeker' },
   company: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
+  isCompanyEmail: { type: Boolean, default: false },
+  companyEmailDomain: String,
 
   headline: String,
   location: String,

@@ -8,13 +8,41 @@ const Company = require('./models/Company');
 const Job = require('./models/Job');
 const Application = require('./models/Application');
 const { calculateMatch } = require('./utils/skillMatcher');
+const { isValidEmail, isCompanyEmail, extractEmailDomain } = require('./utils/emailValidator');
 
 async function runTests() {
   console.log('🧪 Starting Smart Job Portal Verification Tests...\n');
   await mongoose.connect(process.env.MONGO_URI);
 
-  // 1. Verify Skill Matcher Algorithm
-  console.log('Test 1: Testing Smart Skill Matcher algorithm calculation...');
+  // 1. Verify Email Validation Rules (Candidate email vs HR corporate email)
+  console.log('Test 1: Testing Email Validation & Corporate Email Enforcement...');
+  assert.strictEqual(isValidEmail('candidate@example.com'), true, 'Valid email should pass');
+  assert.strictEqual(isValidEmail('not-an-email'), false, 'Malformed email should fail');
+  assert.strictEqual(isValidEmail('user@'), false, 'Incomplete email should fail');
+
+  assert.strictEqual(isCompanyEmail('sarah@techcorp.com'), true, 'Corporate domain should pass HR check');
+  assert.strictEqual(isCompanyEmail('recruiter@stripe.io'), true, 'Custom startup domain should pass HR check');
+  assert.strictEqual(isCompanyEmail('recruiter@gmail.com'), false, 'Gmail must be blocked for HR');
+  assert.strictEqual(isCompanyEmail('recruiter@yahoo.com'), false, 'Yahoo must be blocked for HR');
+  assert.strictEqual(isCompanyEmail('recruiter@hotmail.com'), false, 'Hotmail must be blocked for HR');
+
+  assert.strictEqual(extractEmailDomain('hr@google.com'), 'google.com');
+  console.log('  ✓ Corporate work email and candidate email validation passed!\n');
+
+  // 2. Verify Company ID Proof and Verification Workflow
+  console.log('Test 2: Verifying Company Business ID Proof & Verification Model...');
+  const company = await Company.findOne({ name: 'TechCorp Solutions' });
+  assert(company, 'TechCorp company must exist');
+  assert(company.taxId, 'Company must have Tax ID / Registration #');
+  assert(company.idProofUrl, 'Company must have uploaded ID proof document');
+  assert(company.idProofType, 'Company must have ID proof document type');
+  assert.strictEqual(company.verificationStatus, 'verified');
+  assert.strictEqual(company.verified, true);
+  console.log(`  -> Verified Company: ${company.name}, Tax ID: ${company.taxId}, Proof: ${company.idProofType}`);
+  console.log('  ✓ Company ID proof & verification fields passed!\n');
+
+  // 3. Verify Skill Matcher Algorithm
+  console.log('Test 3: Testing Smart Skill Matcher algorithm calculation...');
   const mockJob = {
     requiredSkills: ['react', 'node', 'mongodb', 'typescript'],
     preferredSkills: ['docker', 'aws'],
@@ -50,9 +78,8 @@ async function runTests() {
   assert.strictEqual(lowMatch.missingSkills.length, 4, 'Should miss all 4 required skills');
   console.log('  ✓ Skill Matcher calculations passed!\n');
 
-  // 2. Verify Database Unique Indexes for Duplicate Applications
-  console.log('Test 2: Verifying Duplicate Application DB Constraints...');
-  // Find a test user and job from seed data
+  // 4. Verify Database Unique Indexes for Duplicate Applications
+  console.log('Test 4: Verifying Duplicate Application DB Constraints...');
   const candidate = await User.findOne({ email: 'arun@example.com' });
   const hrUser = await User.findOne({ email: 'hr@techcorp.com' });
   const job = await Job.findOne({ postedBy: hrUser._id });
@@ -60,7 +87,6 @@ async function runTests() {
   assert(candidate, 'Candidate Arun must exist');
   assert(job, 'Job vacancy must exist');
 
-  // Check existing application for Arun
   const existing = await Application.findOne({ job: job._id, applicant: candidate._id });
   assert(existing, 'Arun should have an application for this job from seed');
 
@@ -82,8 +108,8 @@ async function runTests() {
   assert(duplicateBlocked, 'MongoDB unique index must reject duplicate application');
   console.log('  ✓ Duplicate Application Protection passed!\n');
 
-  // 3. Verify HR Ranked Candidates API Query
-  console.log('Test 3: Verifying Ranked Candidates sort order...');
+  // 5. Verify HR Ranked Candidates API Query
+  console.log('Test 5: Verifying Ranked Candidates sort order...');
   const apps = await Application.find({ job: job._id }).sort({ matchScore: -1 });
   console.log(`  -> Found ${apps.length} applicants for job "${job.title}"`);
   for (let i = 0; i < apps.length - 1; i++) {
@@ -94,8 +120,8 @@ async function runTests() {
   }
   console.log('  ✓ Candidates correctly sorted in descending order of matchScore!\n');
 
-  // 4. Verify Application Status Update with HR Feedback
-  console.log('Test 4: Verifying HR Status update & Feedback...');
+  // 6. Verify Application Status Update with HR Feedback
+  console.log('Test 6: Verifying HR Status update & Feedback...');
   existing.status = 'interview';
   existing.feedback = 'Strong portfolio projects and 1st prize in hackathon. Invited to technical round.';
   existing.reviewedAt = new Date();

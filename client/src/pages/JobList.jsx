@@ -111,6 +111,11 @@ function JobCard({ job, onApplyClick }) {
           </div>
           <p className="company-line">
             <span className="company-name">{job.company?.name}</span>
+            {job.company?.verified && (
+              <span className="verified-employer-pill" title="Verified Legal Organization by ID Proof">
+                ✓ Verified Employer
+              </span>
+            )}
             {job.location && <span className="dot-sep">•</span>}
             <span>{job.location}</span>
             {job.salaryRange?.max && (

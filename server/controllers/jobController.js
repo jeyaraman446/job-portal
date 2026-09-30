@@ -112,7 +112,7 @@ exports.getJobsForSeeker = async (req, res) => {
     }
 
     const jobs = await Job.find(filter)
-      .populate('company', 'name industry website location size')
+      .populate('company', 'name industry website location size verified verificationStatus')
       .lean();
 
     const myApplications = await Application.find({

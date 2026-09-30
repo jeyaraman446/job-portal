@@ -21,16 +21,12 @@ async function seed() {
     fs.mkdirSync(resumesDir, { recursive: true });
   }
 
-  // Create sample PDF dummy file if not exists
-  const samplePdfPath = path.join(resumesDir, 'sample-resume.pdf');
-  if (!fs.existsSync(samplePdfPath)) {
-    // Minimal valid PDF structure
-    const samplePdfContent = `%PDF-1.4
+  const samplePdfContent = `%PDF-1.4
 1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
 2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
 3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >> endobj
 4 0 obj << /Length 55 >> stream
-BT /F1 12 Tf 72 712 Td (Sample Resume for Smart Job Portal) Tj ET
+BT /F1 12 Tf 72 712 Td (Sample Document for Smart Job Portal) Tj ET
 endstream
 endobj
 xref
@@ -44,6 +40,10 @@ trailer << /Size 5 /Root 1 0 R >>
 startxref
 316
 %%EOF`;
+
+  // Create sample PDF dummy file if not exists
+  const samplePdfPath = path.join(resumesDir, 'sample-resume.pdf');
+  if (!fs.existsSync(samplePdfPath)) {
     fs.writeFileSync(samplePdfPath, samplePdfContent);
   }
   const sampleResumeHash = hashFile(samplePdfPath);
@@ -67,7 +67,17 @@ startxref
     phone: '+1 555-019-2834',
   });
 
-  // 2. Create Company
+  // Create sample company ID proof PDF dummy file if not exists
+  const companyDocsDir = path.resolve(__dirname, 'uploads/company_docs');
+  if (!fs.existsSync(companyDocsDir)) {
+    fs.mkdirSync(companyDocsDir, { recursive: true });
+  }
+  const sampleCompanyDocPath = path.join(companyDocsDir, 'sample-business-registration.pdf');
+  if (!fs.existsSync(sampleCompanyDocPath)) {
+    fs.writeFileSync(sampleCompanyDocPath, samplePdfContent);
+  }
+
+  // 2. Create Company with Validated Business ID Proof
   const company = await Company.create({
     name: 'TechCorp Solutions',
     website: 'https://techcorp.example.com',
@@ -76,12 +86,22 @@ startxref
     location: 'San Francisco, CA & Remote',
     description: 'TechCorp is a high-growth technology company building modern distributed enterprise cloud systems and intelligent developer tools.',
     registeredBy: hrUser._id,
+    taxId: 'US-EIN-884920194',
+    companyEmailDomain: 'techcorp.com',
+    idProofUrl: 'uploads/company_docs/sample-business-registration.pdf',
+    idProofFileName: 'TechCorp_Certificate_Of_Incorporation.pdf',
+    idProofType: 'Certificate of Incorporation',
+    verificationStatus: 'verified',
     verified: true,
+    verifiedAt: new Date(),
+    verificationNotes: 'Corporate state incorporation & EIN tax ID verified.',
   });
 
   hrUser.company = company._id;
+  hrUser.isCompanyEmail = true;
+  hrUser.companyEmailDomain = 'techcorp.com';
   await hrUser.save();
-  console.log('Created HR User and Company.');
+  console.log('Created HR User and Verified Company with ID Proof.');
 
   // 3. Create Job Vacancies
   const jobMern = await Job.create({

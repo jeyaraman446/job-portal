@@ -25,6 +25,8 @@ yarn-error.log*
 # Uploads
 server/uploads/resumes/*
 !server/uploads/resumes/.gitkeep
+server/uploads/company_docs/*
+!server/uploads/company_docs/.gitkeep
 
 # OS generated files
 .DS_Store

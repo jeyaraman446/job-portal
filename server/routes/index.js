@@ -10,8 +10,10 @@ router.post('/auth/register', auth.register);
 router.post('/auth/login', auth.login);
 router.get('/auth/me', protect, auth.me);
 
-router.post('/company', protect, allow('hr'), company.registerCompany);
-router.put('/company', protect, allow('hr'), company.updateCompany);
+router.post('/company', protect, allow('hr'), upload.single('idProof'), company.registerCompany);
+router.put('/company', protect, allow('hr'), upload.single('idProof'), company.updateCompany);
+router.post('/company/id-proof', protect, allow('hr'), upload.single('idProof'), company.uploadIdProof);
+router.patch('/company/verify', protect, allow('hr'), company.verifyCompany);
 router.get('/company/mine', protect, allow('hr'), company.getMyCompany);
 
 router.post('/jobs', protect, allow('hr'), jobs.postJob);

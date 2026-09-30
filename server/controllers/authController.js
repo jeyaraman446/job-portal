@@ -14,6 +14,8 @@ const publicUser = u => {
   return o;
 };
 
+const { isValidEmail, isCompanyEmail, extractEmailDomain } = require('../utils/emailValidator');
+
 exports.register = async (req, res) => {
   try {
     const { name, email, password, role, phone } = req.body;
@@ -22,13 +24,29 @@ exports.register = async (req, res) => {
     if (password.length < 6)
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
 
-    // Admin accounts cannot be self-registered
+    const cleanEmail = email.trim().toLowerCase();
+    if (!isValidEmail(cleanEmail)) {
+      return res.status(400).json({ message: 'Please provide a valid email address (e.g. name@domain.com)' });
+    }
+
     const safeRole = role === 'hr' ? 'hr' : 'seeker';
+
+    // HR accounts must use a valid company domain (no gmail/yahoo/etc.)
+    if (safeRole === 'hr' && !isCompanyEmail(cleanEmail)) {
+      return res.status(400).json({
+        message: 'HR & Employers must register with an official company work email (e.g. name@company.com). Free public emails like Gmail or Yahoo are not permitted for hiring accounts.',
+      });
+    }
+
+    const domain = extractEmailDomain(cleanEmail);
+
     const user = await User.create({
       name: name.trim(),
-      email: email.trim().toLowerCase(),
+      email: cleanEmail,
       phone: phone ? phone.trim() : undefined,
       role: safeRole,
+      isCompanyEmail: safeRole === 'hr',
+      companyEmailDomain: safeRole === 'hr' ? domain : undefined,
       password: await bcrypt.hash(password, 10),
     });
     res.status(201).json({ token: sign(user), user: publicUser(user) });
