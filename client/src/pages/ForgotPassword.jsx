@@ -18,7 +18,6 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [timer, setTimer] = useState(60);
-  const [devOtp, setDevOtp] = useState('');
 
   const inputRefs = useRef([]);
 
@@ -74,13 +73,6 @@ export default function ForgotPassword() {
     }
   };
 
-  const handleAutoFill = code => {
-    if (!code) return;
-    const split = code.split('').slice(0, 6);
-    setOtpDigits(split);
-    setError('');
-  };
-
   // Step 1: Request password reset email
   const handleRequestOtp = async e => {
     e.preventDefault();
@@ -91,7 +83,6 @@ export default function ForgotPassword() {
     try {
       const res = await forgotPassword(email.trim());
       setSuccess(res.message || 'Password reset passcode has been sent to your email.');
-      if (res.devOtp) setDevOtp(res.devOtp);
       setStep(2);
       setTimer(60);
       setTimeout(() => inputRefs.current[0]?.focus(), 100);
@@ -143,7 +134,6 @@ export default function ForgotPassword() {
     try {
       const res = await resendOtp(email.trim(), 'reset_password');
       setSuccess(res.message || 'A new password reset code has been sent.');
-      if (res.devOtp) setDevOtp(res.devOtp);
       setTimer(60);
       setOtpDigits(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
@@ -224,21 +214,13 @@ export default function ForgotPassword() {
             {error && <div className="error-banner" role="alert">{error}</div>}
             {success && <div className="success-banner" role="status">{success}</div>}
 
-            {devOtp && (
-              <div className="demo-otp-box">
-                <div className="demo-otp-header">
-                  <span>⚡ Dev/Local Preview Code:</span>
-                  <strong className="dev-code-val">{devOtp}</strong>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-sm secondary auto-fill-btn"
-                  onClick={() => handleAutoFill(devOtp)}
-                >
-                  Auto-fill Code
-                </button>
+            <div className="mail-check-notice">
+              <span className="notice-mail-icon">📬</span>
+              <div>
+                <strong>Check your Gmail / Email Inbox:</strong>
+                <p>We've sent a 6-digit password recovery code to <strong>{email}</strong>. Enter the passcode below to set your new password. Check your Spam folder if not received.</p>
               </div>
-            )}
+            </div>
 
             <form onSubmit={handleResetSubmit}>
               <div className="otp-inputs-wrapper" onPaste={handlePaste}>

@@ -24,7 +24,6 @@ export default function Login() {
           state: {
             email: err.response.data.email || form.email,
             role: err.response.data.role,
-            devOtp: err.response.data.devOtp,
             message: err.response.data.message || 'Please verify your email address to continue.',
           },
         });

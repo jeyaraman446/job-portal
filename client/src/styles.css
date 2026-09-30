@@ -1368,6 +1368,42 @@ button.link {
   background: rgba(59, 130, 246, 0.04);
 }
 
+/* Gmail Inbox Notice */
+.mail-check-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: .85rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: .85rem 1rem;
+  margin-bottom: 1.35rem;
+  font-size: .86rem;
+  line-height: 1.5;
+  color: #1e3a8a;
+}
+[data-theme="dark"] .mail-check-notice {
+  background: rgba(30, 58, 138, 0.35);
+  border-color: rgba(96, 165, 250, 0.3);
+  color: #bfdbfe;
+}
+.mail-check-notice strong {
+  display: block;
+  font-size: .88rem;
+  margin-bottom: .2rem;
+  color: #1e40af;
+}
+[data-theme="dark"] .mail-check-notice strong { color: #93c5fd; }
+.mail-check-notice p {
+  margin: 0;
+}
+.notice-mail-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: .1rem;
+}
+
 /* Demo / Developer OTP Preview Helper */
 .demo-otp-box {
   display: flex;

@@ -65,7 +65,6 @@ exports.register = async (req, res) => {
       requiresOtp: true,
       email: user.email,
       role: user.role,
-      devOtp: process.env.NODE_ENV === 'production' ? undefined : otp,
     });
   } catch (e) {
     if (e.code === 11000) return res.status(409).json({ message: 'Email or phone already registered' });
@@ -147,7 +146,6 @@ exports.resendOtp = async (req, res) => {
     res.json({
       message: `A fresh 6-digit OTP code has been sent to ${cleanEmail}.`,
       email: user.email,
-      devOtp: process.env.NODE_ENV === 'production' ? undefined : otp,
     });
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -175,7 +173,6 @@ exports.forgotPassword = async (req, res) => {
       message: `Password reset OTP has been dispatched to ${cleanEmail}.`,
       email: user.email,
       requiresOtp: true,
-      devOtp: process.env.NODE_ENV === 'production' ? undefined : otp,
     });
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -250,7 +247,6 @@ exports.login = async (req, res) => {
         message: 'Your email address is not yet verified. A 6-digit OTP code has been sent to your inbox.',
         email: user.email,
         role: user.role,
-        devOtp: process.env.NODE_ENV === 'production' ? undefined : otp,
       });
     }
 

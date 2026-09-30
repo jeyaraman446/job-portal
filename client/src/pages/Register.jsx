@@ -39,7 +39,6 @@ export default function Register() {
           state: {
             email: form.email,
             role: form.role,
-            devOtp: res.devOtp,
             message: res.message || 'Verification code sent to your email!',
           },
         });

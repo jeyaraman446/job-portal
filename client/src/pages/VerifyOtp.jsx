@@ -8,10 +8,9 @@ export default function VerifyOtp() {
   const nav = useNavigate();
   const location = useLocation();
 
-  // Retrieve email, role, and devOtp passed from registration or login
+  // Retrieve email and role passed from registration or login
   const emailState = location.state?.email || '';
   const roleState = location.state?.role || 'seeker';
-  const initialDevOtp = location.state?.devOtp || '';
   const initialMessage = location.state?.message || '';
 
   const [email, setEmail] = useState(emailState);
@@ -21,7 +20,6 @@ export default function VerifyOtp() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [timer, setTimer] = useState(60);
-  const [devOtp, setDevOtp] = useState(initialDevOtp);
 
   const inputRefs = useRef([]);
 
@@ -86,13 +84,6 @@ export default function VerifyOtp() {
     }
   };
 
-  const handleAutoFill = code => {
-    if (!code) return;
-    const split = code.split('').slice(0, 6);
-    setOtpDigits(split);
-    setError('');
-  };
-
   const submitOtp = async e => {
     e?.preventDefault();
     const fullOtp = otpDigits.join('');
@@ -140,7 +131,6 @@ export default function VerifyOtp() {
     try {
       const res = await resendOtp(email, 'verify_email');
       setSuccess(res.message || 'A fresh verification code has been dispatched to your email.');
-      if (res.devOtp) setDevOtp(res.devOtp);
       setTimer(60);
       setOtpDigits(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
@@ -171,22 +161,13 @@ export default function VerifyOtp() {
         {error && <div className="error-banner" role="alert">{error}</div>}
         {success && <div className="success-banner" role="status">{success}</div>}
 
-        {/* Demo / Developer Quick Helper */}
-        {devOtp && (
-          <div className="demo-otp-box">
-            <div className="demo-otp-header">
-              <span>⚡ Dev/Local Preview Code:</span>
-              <strong className="dev-code-val">{devOtp}</strong>
-            </div>
-            <button
-              type="button"
-              className="btn btn-sm secondary auto-fill-btn"
-              onClick={() => handleAutoFill(devOtp)}
-            >
-              Auto-fill Code
-            </button>
+        <div className="mail-check-notice">
+          <span className="notice-mail-icon">📬</span>
+          <div>
+            <strong>Check your Gmail / Email Inbox:</strong>
+            <p>Your one-time passcode was sent to <strong>{email}</strong>. Open your email to retrieve the code. If not found in 1 minute, check your Spam / Promotions folder.</p>
           </div>
-        )}
+        </div>
 
         <form onSubmit={submitOtp}>
           {!emailState && (

@@ -8,21 +8,29 @@ function generateOtp() {
 }
 
 /**
- * Initialize nodemailer transporter based on environment or fallback
+ * Initialize nodemailer transporter based on Gmail or custom SMTP
  */
 function getTransporter() {
-  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+  const user = process.env.GMAIL_USER || process.env.SMTP_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.SMTP_PASS;
+
+  if (user && pass) {
+    if (process.env.SMTP_HOST) {
+      return nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT) || 587,
+        secure: Number(process.env.SMTP_PORT) === 465,
+        auth: { user, pass },
+      });
+    }
+
+    // Default to direct Gmail Service
     return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 587,
-      secure: Number(process.env.SMTP_PORT) === 465,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
+      service: 'gmail',
+      auth: { user, pass },
     });
   }
-  return null; // Local simulation mode
+  return null;
 }
 
 /**
@@ -134,7 +142,7 @@ async function sendPasswordResetEmail({ to, name, otp }) {
  */
 async function sendMail({ to, subject, html, text }) {
   const fromName = process.env.FROM_NAME || 'Smart Job Portal Security';
-  const fromEmail = process.env.FROM_EMAIL || process.env.SMTP_USER || 'security@smartjobportal.com';
+  const fromEmail = process.env.FROM_EMAIL || process.env.GMAIL_USER || process.env.SMTP_USER || 'security@smartjobportal.com';
   const from = `"${fromName}" <${fromEmail}>`;
 
   const transporter = getTransporter();
@@ -142,19 +150,21 @@ async function sendMail({ to, subject, html, text }) {
   if (transporter) {
     try {
       const info = await transporter.sendMail({ from, to, subject, text, html });
-      console.log(`📧 [EMAIL SENT] Message dispatched to ${to}: ${info.messageId}`);
-      return { success: true, messageId: info.messageId, mode: 'smtp' };
+      console.log(`📧 [GMAIL SENT] Message successfully dispatched to ${to}: ${info.messageId}`);
+      return { success: true, messageId: info.messageId, mode: 'gmail' };
     } catch (err) {
-      console.warn(`⚠️ [SMTP ERROR] Failed to send email via SMTP (${err.message}). Falling back to simulation mode.`);
+      console.error(`❌ [GMAIL DELIVERY ERROR] Failed to send email to ${to}: ${err.message}`);
+      throw new Error(`Failed to deliver OTP to ${to} via Gmail: ${err.message}. Please check your GMAIL_USER and GMAIL_APP_PASSWORD in server/.env.`);
     }
   }
 
-  // Local/Dev Simulation Output
-  console.log(`\n======================================================`);
-  console.log(`📨 [MAIL DISPATCH SIMULATION]`);
-  console.log(`To:      ${to}`);
-  console.log(`Subject: ${subject}`);
-  console.log(`Content: ${text}`);
+  // If Gmail / SMTP is not yet configured in server/.env
+  console.warn(`\n⚠️ [GMAIL NOT CONFIGURED] Real email cannot be dispatched because GMAIL_USER or GMAIL_APP_PASSWORD is not set in server/.env.`);
+  console.log(`======================================================`);
+  console.log(`To configure real Gmail dispatch:`);
+  console.log(`1. Add GMAIL_USER=your_email@gmail.com to server/.env`);
+  console.log(`2. Add GMAIL_APP_PASSWORD=your_16_char_app_password to server/.env`);
+  console.log(`(Generate your 16-character password at: https://myaccount.google.com/apppasswords)`);
   console.log(`======================================================\n`);
 
   return { success: true, mode: 'simulation' };
