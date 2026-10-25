@@ -1,39 +1,33 @@
+// server/middleware/upload.js
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
 const resumesDir = path.resolve(__dirname, '../uploads/resumes');
-const companyDocsDir = path.resolve(__dirname, '../uploads/company_docs');
-
-[resumesDir, companyDocsDir].forEach(dir => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-});
+if (!fs.existsSync(resumesDir)) {
+  fs.mkdirSync(resumesDir, { recursive: true });
+}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    if (file.fieldname === 'idProof' || req.baseUrl.includes('company')) {
-      cb(null, 'uploads/company_docs');
-    } else {
-      cb(null, 'uploads/resumes');
-    }
+    cb(null, resumesDir);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${req.user?.id || 'anon'}-${Date.now()}${ext}`);
+    cb(null, `resume-${req.user?.id || 'guest'}-${Date.now()}${ext}`);
   },
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
-  if (allowedTypes.includes(file.mimetype)) {
+  if (file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf')) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file format. Only PDF, PNG, or JPEG documents are allowed.'));
+    cb(new Error('Only PDF format resumes are permitted (max 2 MB).'));
   }
 };
 
 module.exports = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB limit per brief Section 3.3
   fileFilter,
 });

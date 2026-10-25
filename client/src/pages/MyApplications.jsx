@@ -1,136 +1,147 @@
-import { useEffect, useState } from 'react';
+// client/src/pages/MyApplications.jsx
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api, { errMsg } from '../api/axios';
 
-const STATUS_COLORS = {
-  applied: 'status-applied',
-  shortlisted: 'status-shortlisted',
-  interview: 'status-interview',
-  hired: 'status-hired',
-  rejected: 'status-rejected',
-};
-
-const STATUS_DESCRIPTIONS = {
-  applied: 'Application received and pending initial review',
-  shortlisted: 'Your profile and matching score stood out! Moving to next round',
-  interview: 'Interview scheduled or in progress with the hiring team',
-  hired: 'Congratulations! You have received an offer for this role',
-  rejected: 'Position filled or criteria not fully met for this opening',
-};
-
 export default function MyApplications() {
-  const [apps, setApps] = useState(null);
+  const [apps, setApps] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState('all');
 
-  const load = () => {
-    api.get('/applications/mine')
-      .then(r => setApps(r.data))
-      .catch(e => setError(errMsg(e)));
+  const fetchApps = async () => {
+    try {
+      const res = await api.get('/applications/mine');
+      setApps(res.data);
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    fetchApps();
+  }, []);
 
-  if (error) return <div className="card error-box"><p className="error">{error}</p></div>;
-  if (!apps) return <div className="loading-state"><div className="spinner"></div><p>Loading your applications…</p></div>;
+  const getStatusBadge = status => {
+    switch (status) {
+      case 'shortlisted':
+        return <span className="status-badge status-shortlisted">🌟 Shortlisted</span>;
+      case 'interview':
+        return <span className="status-badge status-interview">📞 Interview Scheduled</span>;
+      case 'hired':
+        return <span className="status-badge status-hired">🎉 Hired</span>;
+      case 'rejected':
+        return <span className="status-badge status-rejected">✕ Not Selected</span>;
+      default:
+        return <span className="status-badge status-applied">⏳ Under Review</span>;
+    }
+  };
 
-  const filtered = filter === 'all' ? apps : apps.filter(a => a.status === filter);
+  const getScoreColor = score => {
+    if (score >= 85) return '#10b981';
+    if (score >= 70) return '#3b82f6';
+    if (score >= 50) return '#f59e0b';
+    return '#ef4444';
+  };
+
+  if (loading) return <div className="loading-state">Loading your submitted applications…</div>;
 
   return (
-    <div className="stack">
-      <div className="page-header">
-        <div>
-          <h1>My Job Applications</h1>
-          <p className="muted">Track the live status and match performance of your job submissions.</p>
-        </div>
-        <Link to="/jobs" className="btn primary">+ Find More Jobs</Link>
+    <div className="applications-container">
+      <div className="section-header-banner card">
+        <h1>My Applications ({apps.length})</h1>
+        <p className="muted">Track your job applications, algorithmic match scores, and interview notifications.</p>
       </div>
 
-      <div className="card filter-bar">
-        <div className="pill-filters">
-          {['all', 'applied', 'shortlisted', 'interview', 'hired', 'rejected'].map(s => (
-            <button
-              key={s}
-              type="button"
-              className={`filter-pill ${filter === s ? 'active' : ''}`}
-              onClick={() => setFilter(s)}
-            >
-              {s.charAt(0).toUpperCase() + s.slice(1)} {s === 'all' ? `(${apps.length})` : `(${apps.filter(a => a.status === s).length})`}
-            </button>
-          ))}
-        </div>
-      </div>
+      {error && <div className="error-banner" role="alert">{error}</div>}
 
-      {filtered.length === 0 ? (
+      {apps.length === 0 ? (
         <div className="card empty-state">
-          <h3>No applications found</h3>
-          <p className="muted">
-            {filter === 'all'
-              ? "You haven't applied to any jobs yet. Check out the ranked jobs board to get started!"
-              : `You have no applications currently marked as ${filter}.`}
-          </p>
-          <Link to="/jobs" className="btn primary" style={{ marginTop: '0.8rem' }}>Browse Recommended Jobs</Link>
+          <h3>No applications submitted yet</h3>
+          <p className="muted">Explore open positions and apply with your customized resume.</p>
+          <Link to="/jobs" className="primary" style={{ display: 'inline-block', textDecoration: 'none' }}>
+            Browse Job Vacancies &rarr;
+          </Link>
         </div>
       ) : (
-        <div className="apps-grid">
-          {filtered.map(a => {
-            const job = a.job || {};
-            const company = job.company || {};
+        <div className="applications-list">
+          {apps.map(app => {
+            const hasInterview = (app.status === 'shortlisted' || app.status === 'interview') && app.interviewDetails;
+            const hasRejection = app.status === 'rejected' && (app.rejectionReasons?.length > 0 || app.companyNote);
+
             return (
-              <div key={a._id} className="card app-card">
-                <div className="app-card-header">
+              <div key={app._id} className="card app-card">
+                <div className="app-card-top">
                   <div>
-                    <h2>{job.title || 'Untitled Vacancy'}</h2>
-                    <p className="company-line">
-                      <strong>{company.name || 'Company'}</strong>
-                      {job.location && <span className="dot-sep">•</span>}
-                      <span>{job.location}</span>
-                      {job.jobType && <span className="job-badge">{job.jobType}</span>}
+                    <span className="company-badge">{app.company?.name || 'Verified Company'}</span>
+                    <h3 className="app-job-title">{app.job?.title}</h3>
+                    <p className="muted">
+                      Applied on {new Date(app.createdAt).toLocaleDateString()} &bull; 📍 {app.job?.location}
                     </p>
                   </div>
-                  <div className="match-pill-wrap">
-                    <div className={`score-badge ${a.matchScore >= 75 ? 'shi' : a.matchScore >= 50 ? 'smid' : 'slo'}`}>
-                      <span className="score-num">{a.matchScore}%</span>
-                      <span className="score-lbl">Match</span>
+
+                  <div className="app-badges-group">
+                    <div
+                      className="score-badge"
+                      style={{ borderColor: getScoreColor(app.matchScore), color: getScoreColor(app.matchScore) }}
+                      title="Resume Match Score"
+                    >
+                      <span className="score-num">{app.matchScore}%</span>
+                      <span className="score-label">Match</span>
                     </div>
+                    {getStatusBadge(app.status)}
                   </div>
                 </div>
 
-                <div className="app-status-bar">
-                  <div className="status-indicator">
-                    <span className={`status-tag ${STATUS_COLORS[a.status] || ''}`}>
-                      {a.status?.toUpperCase()}
-                    </span>
-                    <span className="status-note">{STATUS_DESCRIPTIONS[a.status]}</span>
+                {/* Interview Call Box */}
+                {hasInterview && (
+                  <div className="interview-call-box">
+                    <h4>🎉 Interview Call Information</h4>
+                    <div className="interview-meta-grid">
+                      <div>
+                        <strong>Mode:</strong> {app.interviewDetails.mode || 'Remote Video'}
+                      </div>
+                      <div>
+                        <strong>Date:</strong> {app.interviewDetails.date ? new Date(app.interviewDetails.date).toLocaleDateString() : 'To be coordinated'}
+                      </div>
+                      <div>
+                        <strong>Time:</strong> {app.interviewDetails.time || 'Check email'}
+                      </div>
+                    </div>
+                    {app.interviewDetails.message && (
+                      <p className="interview-note">
+                        <strong>Recruiter Message:</strong> "{app.interviewDetails.message}"
+                      </p>
+                    )}
                   </div>
-                  <span className="applied-date">
-                    Applied on {new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                )}
+
+                {/* Rejection Feedback Box */}
+                {hasRejection && (
+                  <div className="rejection-feedback-box">
+                    <h4>💡 Feedback & Areas to Improve</h4>
+                    {app.companyNote && (
+                      <p className="company-note-text">
+                        <strong>Note from employer:</strong> "{app.companyNote}"
+                      </p>
+                    )}
+                    {app.rejectionReasons?.length > 0 && (
+                      <ul className="reasons-list">
+                        {app.rejectionReasons.map((r, i) => <li key={i}>{r}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                <div className="app-card-bottom">
+                  <span className="resume-tag">
+                    📄 Resume: {app.resumeFileName || 'Submitted_Resume.pdf'}
                   </span>
+                  <Link to={`/jobs/${app.job?._id}`} className="view-link">
+                    View Job Requirements &rarr;
+                  </Link>
                 </div>
-
-                {a.coverNote && (
-                  <div className="cover-note-box">
-                    <strong>Your note:</strong> "{a.coverNote}"
-                  </div>
-                )}
-
-                {a.feedback && (
-                  <div className="feedback-box">
-                    <strong>Hiring Team Feedback:</strong> {a.feedback}
-                  </div>
-                )}
-
-                {a.matchBreakdown && (
-                  <div className="app-breakdown">
-                    <div className="breakdown-chip">Skills: {a.matchBreakdown.requiredSkills}/40</div>
-                    <div className="breakdown-chip">Preferred: {a.matchBreakdown.preferredSkills}/15</div>
-                    <div className="breakdown-chip">Projects: {a.matchBreakdown.projects}/15</div>
-                    <div className="breakdown-chip">Experience: {a.matchBreakdown.experience}/8</div>
-                    <div className="breakdown-chip">Internships: {a.matchBreakdown.internships}/7</div>
-                    <div className="breakdown-chip">Hackathons: {a.matchBreakdown.hackathons}/10</div>
-                    <div className="breakdown-chip">Exams: {a.matchBreakdown.exams}/5</div>
-                  </div>
-                )}
               </div>
             );
           })}

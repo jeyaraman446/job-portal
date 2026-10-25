@@ -1,4 +1,5 @@
-import { createContext, useContext, useState } from 'react';
+// client/src/context/AuthContext.jsx
+import { createContext, useContext, useState, useEffect } from 'react';
 import api from '../api/axios';
 
 const AuthContext = createContext(null);
@@ -6,50 +7,53 @@ export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
+    try {
+      return JSON.parse(localStorage.getItem('user'));
+    } catch {
+      return null;
+    }
   });
 
-  const save = ({ token, user }) => {
+  const save = ({ token, user, company }) => {
+    const activeObj = user || company;
     if (token) localStorage.setItem('token', token);
-    if (user) {
-      localStorage.setItem('user', JSON.stringify(user));
-      setUser(user);
+    if (activeObj) {
+      localStorage.setItem('user', JSON.stringify(activeObj));
+      setUser(activeObj);
     }
-    return user;
+    return activeObj;
   };
 
-  const login = async (email, password) => {
-    const res = await api.post('/auth/login', { email, password });
+  const seekerLogin = async (mail_id, password) => {
+    const res = await api.post('/auth/seeker/login', { mail_id, password });
     if (res.data.token && res.data.user) save(res.data);
     return res.data;
   };
 
-  const register = async form => {
-    const res = await api.post('/auth/register', form);
+  const seekerRegister = async form => {
+    const res = await api.post('/auth/seeker/register', form);
     if (res.data.token && res.data.user) save(res.data);
     return res.data;
   };
 
-  const verifyOtp = async (email, otp) => {
-    const res = await api.post('/auth/verify-otp', { email, otp });
-    if (res.data.token && res.data.user) save(res.data);
+  const companyLogin = async (mail_id, password) => {
+    const res = await api.post('/auth/company/login', { mail_id, password });
+    if (res.data.token && (res.data.company || res.data.user)) save(res.data);
     return res.data;
   };
 
-  const resendOtp = async (email, purpose = 'verify_email') => {
-    const res = await api.post('/auth/resend-otp', { email, purpose });
+  const companyRegister = async form => {
+    const res = await api.post('/auth/company/register', form);
+    if (res.data.token && (res.data.company || res.data.user)) save(res.data);
     return res.data;
   };
 
-  const forgotPassword = async email => {
-    const res = await api.post('/auth/forgot-password', { email });
-    return res.data;
-  };
-
-  const resetPassword = async (email, otp, newPassword) => {
-    const res = await api.post('/auth/reset-password', { email, otp, newPassword });
-    if (res.data.token && res.data.user) save(res.data);
-    return res.data;
+  // Universal login helper
+  const login = async (mail_id, password, role = 'seeker') => {
+    if (role === 'company') {
+      return companyLogin(mail_id, password);
+    }
+    return seekerLogin(mail_id, password);
   };
 
   const logout = () => {
@@ -58,19 +62,36 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    try {
+      const res = await api.get('/auth/me');
+      if (res.data?.user) {
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+        setUser(res.data.user);
+      }
+    } catch {
+      logout();
+    }
+  };
+
+  const isCompany = user?.role === 'company';
+  const isSeeker = user?.role === 'seeker' || user?.role === 'user';
+
   return (
     <AuthContext.Provider
       value={{
         user,
         setUser,
-        save,
+        isCompany,
+        isSeeker,
         login,
-        register,
-        verifyOtp,
-        resendOtp,
-        forgotPassword,
-        resetPassword,
+        seekerLogin,
+        seekerRegister,
+        companyLogin,
+        companyRegister,
         logout,
+        refreshUser,
+        save,
       }}
     >
       {children}

@@ -1,567 +1,688 @@
-import { useEffect, useState } from 'react';
-import api, { errMsg, getFileUrl } from '../api/axios';
-import TagInput from '../components/TagInput';
-
-const blank = {
-  exam: { name: '', rank: '', score: '', year: '' },
-  hack: { name: '', position: '', techUsed: [], year: '' },
-  proj: { title: '', description: '', techStack: [], link: '' },
-  intern: { company: '', role: '', durationMonths: '', description: '', techStack: [] },
-};
+// client/src/pages/SeekerProfile.jsx
+import { useState, useEffect } from 'react';
+import api, { errMsg } from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 
 export default function SeekerProfile() {
-  const [p, setP] = useState(null);
-  const [msg, setMsg] = useState({ type: '', text: '' });
-  const [exam, setExam] = useState(blank.exam);
-  const [hack, setHack] = useState(blank.hack);
-  const [proj, setProj] = useState(blank.proj);
-  const [intern, setIntern] = useState(blank.intern);
-  const [uploading, setUploading] = useState(false);
+  const { refreshUser } = useAuth();
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  // Skill input
+  const [newSkill, setNewSkill] = useState('');
+  // Project modal / form
+  const [projForm, setProjForm] = useState({ title: '', description: '', techStack: '', link: '' });
+  const [showProjModal, setShowProjModal] = useState(false);
+  // Hackathon modal / form
+  const [hackForm, setHackForm] = useState({ name: '', year: 2024, status: 'participated', position: '', techUsed: '' });
+  const [showHackModal, setShowHackModal] = useState(false);
+  // Experience modal / form
+  const [expForm, setExpForm] = useState({ company: '', role: '', years: 1, months: 0, description: '' });
+  const [showExpModal, setShowExpModal] = useState(false);
+  // Internship modal / form
+  const [internForm, setInternForm] = useState({ company: '', role: '', duration: '3 months', durationMonths: 3, description: '' });
+  const [showInternModal, setShowInternModal] = useState(false);
+  // Education modal / form
+  const [eduForm, setEduForm] = useState({ level: 'Degree', boardOrUniversity: '', percentageOrCgpa: 8.5, year: 2024 });
+  const [showEduModal, setShowEduModal] = useState(false);
+
+  // Resume upload
+  const [resumeFile, setResumeFile] = useState(null);
+  const [uploadingResume, setUploadingResume] = useState(false);
+
+  const loadProfile = async () => {
+    try {
+      const res = await api.get('/profile');
+      setProfile(res.data);
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    api.get('/auth/me').then(r => setP(r.data));
+    loadProfile();
   }, []);
 
-  if (!p) {
-    return (
-      <div className="loading-state">
-        <div className="spinner"></div>
-        <p>Loading your profile and matching data…</p>
-      </div>
-    );
-  }
-
-  const save = async () => {
+  const saveOverall = async e => {
+    if (e) e.preventDefault();
     setSaving(true);
-    setMsg({ type: '', text: '' });
+    setError('');
+    setSuccess('');
     try {
-      const { data } = await api.put('/profile', {
-        name: p.name,
-        headline: p.headline,
-        location: p.location,
-        phone: p.phone,
-        github: p.github,
-        linkedin: p.linkedin,
-        skills: p.skills,
-        experienceYears: p.experienceYears,
-        internships: p.internships,
-        competitiveExams: p.competitiveExams,
-        hackathons: p.hackathons,
-        projects: p.projects,
+      const res = await api.put('/profile', {
+        name: profile.name,
+        phone: profile.phone,
+        github: profile.github,
+        linkedin: profile.linkedin,
+        cgpa: profile.cgpa,
+        interests: profile.interests,
+        degree: profile.degree,
       });
-      setP(data);
-      setMsg({ type: 'success', text: 'Profile updated successfully! All job match scores have been recalculated.' });
-    } catch (e) {
-      setMsg({ type: 'error', text: errMsg(e) });
+      setProfile(res.data.user);
+      setSuccess('Profile updated successfully!');
+      refreshUser();
+    } catch (err) {
+      setError(errMsg(err));
     } finally {
       setSaving(false);
     }
   };
 
-  const uploadResume = async e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploading(true);
-    setMsg({ type: '', text: '' });
-    const fd = new FormData();
-    fd.append('resume', file);
+  // Add skill
+  const handleAddSkill = async e => {
+    e.preventDefault();
+    if (!newSkill.trim()) return;
     try {
-      const { data } = await api.post('/profile/resume', fd);
-      setP({ ...p, skills: data.skills, resumeUrl: data.resumeUrl, resumeFileName: data.resumeFileName });
-      setMsg({
-        type: 'success',
-        text: `Resume processed successfully! Parsed ${data.detectedSkills.length} skills from your PDF: ${data.detectedSkills.join(', ') || 'No known skills matched'}.`,
-      });
+      const res = await api.post('/profile/skills', { skill: newSkill });
+      setProfile({ ...profile, skills: res.data.skills });
+      setNewSkill('');
+      setSuccess('Skill added!');
     } catch (err) {
-      setMsg({ type: 'error', text: errMsg(err) });
-    } finally {
-      setUploading(false);
+      setError(errMsg(err));
     }
   };
 
-  const addTo = (key, item, reset, clear) => {
-    setP({ ...p, [key]: [...(p[key] || []), item] });
-    reset(clear);
+  // Remove skill
+  const handleRemoveSkill = async skill => {
+    try {
+      const res = await api.delete(`/profile/skills/${encodeURIComponent(skill)}`);
+      setProfile({ ...profile, skills: res.data.skills });
+    } catch (err) {
+      setError(errMsg(err));
+    }
   };
 
-  const removeFrom = (key, i) => {
-    setP({ ...p, [key]: p[key].filter((_, idx) => idx !== i) });
+  // Add project
+  const handleAddProject = async e => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/profile/projects', {
+        ...projForm,
+        techStack: projForm.techStack.split(',').map(s => s.trim()).filter(Boolean),
+      });
+      setProfile({ ...profile, projects: res.data.projects });
+      setShowProjModal(false);
+      setProjForm({ title: '', description: '', techStack: '', link: '' });
+      setSuccess('Project added!');
+    } catch (err) {
+      setError(errMsg(err));
+    }
   };
 
-  const num = v => (v === '' || isNaN(v) ? undefined : Number(v));
+  const handleDeleteProject = async id => {
+    try {
+      const res = await api.delete(`/profile/projects/${id}`);
+      setProfile({ ...profile, projects: res.data.projects });
+    } catch (err) {
+      setError(errMsg(err));
+    }
+  };
 
-  // Build resume download URL
-  const resumeDownloadUrl = p.resumeUrl ? getFileUrl(p.resumeUrl) : null;
+  // Add Hackathon
+  const handleAddHackathon = async e => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/profile/hackathons', {
+        ...hackForm,
+        techUsed: hackForm.techUsed.split(',').map(s => s.trim()).filter(Boolean),
+      });
+      setProfile({ ...profile, hackathons: res.data.hackathons });
+      setShowHackModal(false);
+      setHackForm({ name: '', year: 2024, status: 'participated', position: '', techUsed: '' });
+      setSuccess('Hackathon added!');
+    } catch (err) {
+      setError(errMsg(err));
+    }
+  };
+
+  const handleDeleteHackathon = async id => {
+    try {
+      const res = await api.delete(`/profile/hackathons/${id}`);
+      setProfile({ ...profile, hackathons: res.data.hackathons });
+    } catch (err) {
+      setError(errMsg(err));
+    }
+  };
+
+  // Add Experience
+  const handleAddExperience = async e => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/profile/experience', expForm);
+      setProfile({ ...profile, experience: res.data.experience });
+      setShowExpModal(false);
+      setExpForm({ company: '', role: '', years: 1, months: 0, description: '' });
+      setSuccess('Experience added!');
+    } catch (err) {
+      setError(errMsg(err));
+    }
+  };
+
+  const handleDeleteExperience = async id => {
+    try {
+      const res = await api.delete(`/profile/experience/${id}`);
+      setProfile({ ...profile, experience: res.data.experience });
+    } catch (err) {
+      setError(errMsg(err));
+    }
+  };
+
+  // Add Internship
+  const handleAddInternship = async e => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/profile/internships', internForm);
+      setProfile({ ...profile, internships: res.data.internships });
+      setShowInternModal(false);
+      setInternForm({ company: '', role: '', duration: '3 months', durationMonths: 3, description: '' });
+      setSuccess('Internship added!');
+    } catch (err) {
+      setError(errMsg(err));
+    }
+  };
+
+  const handleDeleteInternship = async id => {
+    try {
+      const res = await api.delete(`/profile/internships/${id}`);
+      setProfile({ ...profile, internships: res.data.internships });
+    } catch (err) {
+      setError(errMsg(err));
+    }
+  };
+
+  // Add Education
+  const handleAddEducation = async e => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/profile/education', eduForm);
+      setProfile({ ...profile, education: res.data.education });
+      setShowEduModal(false);
+      setEduForm({ level: 'Degree', boardOrUniversity: '', percentageOrCgpa: 8.5, year: 2024 });
+      setSuccess('Education record added!');
+    } catch (err) {
+      setError(errMsg(err));
+    }
+  };
+
+  const handleDeleteEducation = async id => {
+    try {
+      const res = await api.delete(`/profile/education/${id}`);
+      setProfile({ ...profile, education: res.data.education });
+    } catch (err) {
+      setError(errMsg(err));
+    }
+  };
+
+  // Resume upload
+  const handleResumeUpload = async e => {
+    e.preventDefault();
+    if (!resumeFile) return;
+    setUploadingResume(true);
+    setError('');
+    setSuccess('');
+
+    const fd = new FormData();
+    fd.append('resume', resumeFile);
+
+    try {
+      const res = await api.post('/profile/resume', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setProfile({
+        ...profile,
+        resumeUrl: res.data.resumeUrl,
+        resumeFileName: res.data.resumeFileName,
+        skills: res.data.skills,
+      });
+      setSuccess(res.data.message || 'Resume uploaded and technical skills extracted!');
+      setResumeFile(null);
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setUploadingResume(false);
+    }
+  };
+
+  if (loading) return <div className="loading-state">Loading your profile portfolio…</div>;
+  if (!profile) return <div className="error-state">Failed to load profile.</div>;
 
   return (
-    <div className="stack profile-page">
+    <div className="profile-container">
       <div className="profile-header-banner card">
-        <div className="profile-header-info">
-          <h1>{p.name}</h1>
-          <p className="profile-headline">{p.headline || 'Add a professional headline below'}</p>
-          <div className="profile-meta-tags">
-            {p.email && (
-              <span className="profile-meta-pill verified-meta-pill" title="Candidate email address verified">
-                ✉️ {p.email} <strong className="verified-tick-small">✓ Verified</strong>
-              </span>
+        <div className="header-info">
+          <h2>{profile.name}</h2>
+          <p className="muted">{profile.mail_id} &bull; Total Experience: <strong>{profile.totalExperienceYears || 0} Years</strong></p>
+          <div className="profile-links-row">
+            {profile.github && (
+              <a href={profile.github} target="_blank" rel="noreferrer" className="pill-link">
+                GitHub &rarr;
+              </a>
             )}
-            {p.location && <span>📍 {p.location}</span>}
-            {p.experienceYears !== undefined && <span>💼 {p.experienceYears} Years Experience</span>}
-            {p.skills?.length > 0 && <span>⚡ {p.skills.length} Technical Skills</span>}
+            {profile.linkedin && (
+              <a href={profile.linkedin} target="_blank" rel="noreferrer" className="pill-link">
+                LinkedIn &rarr;
+              </a>
+            )}
+            {profile.cgpa > 0 && <span className="pill-chip">CGPA: {profile.cgpa}</span>}
           </div>
         </div>
-        <button className="primary save-top-btn" onClick={save} disabled={saving}>
-          {saving ? 'Saving Changes…' : 'Save Profile'}
-        </button>
+
+        {/* Resume Box */}
+        <div className="resume-box">
+          <h4>📄 Resume Document</h4>
+          {profile.resumeUrl ? (
+            <p className="resume-status-text">
+              Current: <strong>{profile.resumeFileName || 'Uploaded Resume.pdf'}</strong>
+            </p>
+          ) : (
+            <p className="muted">No resume uploaded yet.</p>
+          )}
+
+          <form onSubmit={handleResumeUpload} className="resume-upload-form">
+            <input
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={e => setResumeFile(e.target.files[0])}
+            />
+            <button type="submit" className="secondary" disabled={!resumeFile || uploadingResume}>
+              {uploadingResume ? 'Parsing…' : 'Upload & Parse Skills'}
+            </button>
+          </form>
+        </div>
       </div>
 
-      {msg.text && (
-        <div className={`notice ${msg.type === 'error' ? 'notice-bad' : 'notice-good'}`} role="status">
-          {msg.text}
-        </div>
-      )}
+      {error && <div className="error-banner" role="alert">{error}</div>}
+      {success && <div className="success-banner" role="status">{success}</div>}
 
-      {/* 1. Resume Upload Card */}
-      <section className="card">
-        <div className="card-section-title">
-          <span className="icon">📄</span>
-          <div>
-            <h2>Resume & Auto-Skill Extraction</h2>
-            <p className="muted">Upload your PDF resume. Our parser automatically scans keywords and expands your skill profile for higher job matching scores.</p>
-          </div>
-        </div>
-
-        <div className="resume-box">
-          <div className="resume-status">
-            {p.resumeUrl ? (
-              <div className="resume-current">
-                <span className="file-badge">PDF</span>
-                <div>
-                  <strong>{p.resumeFileName || 'Resume on file'}</strong>
-                  <p className="muted">Uploaded and indexed for job vacancy submissions.</p>
-                </div>
-                <a
-                  href={resumeDownloadUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn"
-                  style={{ marginLeft: 'auto' }}
-                >
-                  View / Download Resume ↗
-                </a>
-              </div>
-            ) : (
-              <p className="warn">⚠️ No resume on file yet. Upload one to be able to submit job applications.</p>
-            )}
-          </div>
-
-          <div className="upload-input-wrap">
-            <label className="file-upload-label">
-              <span>{uploading ? 'Extracting text and skills from PDF…' : 'Upload New Resume (PDF only, max 2MB)'}</span>
-              <input type="file" accept="application/pdf" onChange={uploadResume} disabled={uploading} />
-            </label>
-          </div>
-        </div>
-      </section>
-
-      {/* 2. Personal & Contact Information */}
-      <section className="card">
-        <div className="card-section-title">
-          <span className="icon">👤</span>
-          <div>
-            <h2>Personal & Professional Info</h2>
-            <p className="muted">Add links and contact info to stand out to hiring managers.</p>
-          </div>
-        </div>
-
-        <div className="row">
-          <label>Full Name
-            <input value={p.name || ''} onChange={e => setP({ ...p, name: e.target.value })} />
-          </label>
-          <label>Professional Headline
+      {/* Basic Profile Details Form */}
+      <form onSubmit={saveOverall} className="card section-card">
+        <h3>Core Profile & Links</h3>
+        <div className="form-grid-2">
+          <label>
+            Full Name
             <input
-              placeholder="e.g. Full Stack MERN Developer | React & Node.js"
-              value={p.headline || ''}
-              onChange={e => setP({ ...p, headline: e.target.value })}
+              value={profile.name || ''}
+              onChange={e => setProfile({ ...profile, name: e.target.value })}
             />
           </label>
-        </div>
-
-        <div className="row">
-          <label>Location
+          <label>
+            Phone Number
             <input
-              placeholder="City, State / Country or Remote"
-              value={p.location || ''}
-              onChange={e => setP({ ...p, location: e.target.value })}
+              value={profile.phone || ''}
+              onChange={e => setProfile({ ...profile, phone: e.target.value })}
             />
           </label>
-          <label>Phone Number
-            <input
-              placeholder="+1 (555) 123-4567"
-              value={p.phone || ''}
-              onChange={e => setP({ ...p, phone: e.target.value })}
-            />
-          </label>
-        </div>
-
-        <div className="row">
-          <label>GitHub Profile Link
+          <label>
+            GitHub Profile URL
             <input
               placeholder="https://github.com/username"
-              value={p.github || ''}
-              onChange={e => setP({ ...p, github: e.target.value })}
+              value={profile.github || ''}
+              onChange={e => setProfile({ ...profile, github: e.target.value })}
             />
           </label>
-          <label>LinkedIn Profile Link
+          <label>
+            LinkedIn Profile URL
             <input
               placeholder="https://linkedin.com/in/username"
-              value={p.linkedin || ''}
-              onChange={e => setP({ ...p, linkedin: e.target.value })}
+              value={profile.linkedin || ''}
+              onChange={e => setProfile({ ...profile, linkedin: e.target.value })}
             />
           </label>
-        </div>
-      </section>
-
-      {/* 3. Skills & Experience */}
-      <section className="card">
-        <div className="card-section-title">
-          <span className="icon">🛠️</span>
-          <div>
-            <h2>Core Skills & Experience</h2>
-            <p className="muted">Directly influences your 40% Required Skills and 15% Preferred Skills match weights.</p>
-          </div>
-        </div>
-
-        <label>
-          Technical Skills
-          <TagInput
-            value={p.skills}
-            onChange={skills => setP({ ...p, skills })}
-            placeholder="Type a skill (e.g. react, node, mongodb, docker, aws) and press Enter"
-          />
-        </label>
-
-        <label>
-          Years of Full-Time Professional Experience
-          <input
-            type="number"
-            min="0"
-            step="0.5"
-            value={p.experienceYears ?? 0}
-            onChange={e => setP({ ...p, experienceYears: Number(e.target.value) })}
-          />
-        </label>
-      </section>
-
-      {/* 4. Internships (Fulfills Experience/Internships requirement) */}
-      <section className="card">
-        <div className="card-section-title">
-          <span className="icon">💼</span>
-          <div>
-            <h2>Internships & Work Experience</h2>
-            <p className="muted">Attending internships gives you direct bonus points in matching against job vacancies.</p>
-          </div>
-        </div>
-
-        <ul className="items">
-          {(p.internships || []).map((x, i) => (
-            <li key={i} className="profile-item-row">
-              <div>
-                <strong>{x.role}</strong> at <strong>{x.company}</strong>
-                {x.durationMonths ? ` (${x.durationMonths} months)` : ''}
-                {x.description && <p className="item-desc">{x.description}</p>}
-                {x.techStack?.length > 0 && (
-                  <div className="item-tech-tags">
-                    {x.techStack.map(t => <span key={t} className="tag">{t}</span>)}
-                  </div>
-                )}
-              </div>
-              <button type="button" className="link remove-btn" onClick={() => removeFrom('internships', i)}>Remove</button>
-            </li>
-          ))}
-          {(!p.internships || p.internships.length === 0) && (
-            <p className="muted empty-note">No internships added yet.</p>
-          )}
-        </ul>
-
-        <div className="form-sub-box">
-          <h3>+ Add an Internship</h3>
-          <div className="row">
-            <input
-              placeholder="Company name (e.g. Stripe, Startup Labs)"
-              value={intern.company}
-              onChange={e => setIntern({ ...intern, company: e.target.value })}
-            />
-            <input
-              placeholder="Role (e.g. Frontend Intern, SDE Intern)"
-              value={intern.role}
-              onChange={e => setIntern({ ...intern, role: e.target.value })}
-            />
-            <input
-              placeholder="Duration in months (e.g. 3, 6)"
-              type="number"
-              min="1"
-              value={intern.durationMonths}
-              onChange={e => setIntern({ ...intern, durationMonths: e.target.value })}
-            />
-          </div>
-          <textarea
-            placeholder="Key responsibilities and achievements during this internship…"
-            value={intern.description}
-            onChange={e => setIntern({ ...intern, description: e.target.value })}
-          />
           <label>
-            Tech Stack Used in Internship
-            <TagInput
-              value={intern.techStack}
-              onChange={techStack => setIntern({ ...intern, techStack })}
-              placeholder="Add tech used (e.g. node, mongodb, react)"
+            Cumulative CGPA (0 - 10)
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="10"
+              value={profile.cgpa || ''}
+              onChange={e => setProfile({ ...profile, cgpa: e.target.value })}
             />
           </label>
-          <button
-            type="button"
-            className="btn"
-            disabled={!intern.company || !intern.role}
-            onClick={() =>
-              addTo(
-                'internships',
-                { ...intern, durationMonths: num(intern.durationMonths) },
-                setIntern,
-                blank.intern
-              )
-            }
-          >
-            Add Internship
-          </button>
-        </div>
-      </section>
-
-      {/* 5. Projects Built */}
-      <section className="card">
-        <div className="card-section-title">
-          <span className="icon">💻</span>
-          <div>
-            <h2>Projects Built</h2>
-            <p className="muted">Projects matching the job's required tech stack award up to 15 match points.</p>
-          </div>
-        </div>
-
-        <ul className="items">
-          {(p.projects || []).map((x, i) => (
-            <li key={i} className="profile-item-row">
-              <div>
-                <div className="project-title-line">
-                  <strong>{x.title}</strong>
-                  {x.link && (
-                    <a href={x.link} target="_blank" rel="noreferrer" className="link proj-link">
-                      {x.link} ↗
-                    </a>
-                  )}
-                </div>
-                {x.description && <p className="item-desc">{x.description}</p>}
-                {x.techStack?.length > 0 && (
-                  <div className="item-tech-tags">
-                    {x.techStack.map(t => <span key={t} className="tag">{t}</span>)}
-                  </div>
-                )}
-              </div>
-              <button type="button" className="link remove-btn" onClick={() => removeFrom('projects', i)}>Remove</button>
-            </li>
-          ))}
-          {(!p.projects || p.projects.length === 0) && (
-            <p className="muted empty-note">No projects added yet.</p>
-          )}
-        </ul>
-
-        <div className="form-sub-box">
-          <h3>+ Add a Project</h3>
-          <div className="row">
-            <input
-              placeholder="Project Title (e.g. E-Commerce Microservices)"
-              value={proj.title}
-              onChange={e => setProj({ ...proj, title: e.target.value })}
-            />
-            <input
-              placeholder="GitHub / Demo URL (optional)"
-              value={proj.link}
-              onChange={e => setProj({ ...proj, link: e.target.value })}
-            />
-          </div>
-          <textarea
-            placeholder="Describe what you built, architecture decisions, and outcomes…"
-            value={proj.description}
-            onChange={e => setProj({ ...proj, description: e.target.value })}
-          />
           <label>
-            Tech Stack Used in Project
-            <TagInput
-              value={proj.techStack}
-              onChange={techStack => setProj({ ...proj, techStack })}
-              placeholder="e.g. react, node, express, mongodb, redis"
+            Interests (comma separated)
+            <input
+              placeholder="cloud, distributed systems, machine learning"
+              value={(profile.interests || []).join(', ')}
+              onChange={e => setProfile({ ...profile, interests: e.target.value.split(',').map(s => s.trim()) })}
             />
           </label>
-          <button
-            type="button"
-            className="btn"
-            disabled={!proj.title}
-            onClick={() => addTo('projects', proj, setProj, blank.proj)}
-          >
-            Add Project
-          </button>
         </div>
-      </section>
-
-      {/* 6. Hackathons */}
-      <section className="card">
-        <div className="card-section-title">
-          <span className="icon">🏆</span>
-          <div>
-            <h2>Hackathons Attended & Won</h2>
-            <p className="muted">Winning or participating in hackathons adds up to 10 points to your score breakdown.</p>
-          </div>
-        </div>
-
-        <ul className="items">
-          {(p.hackathons || []).map((x, i) => (
-            <li key={i} className="profile-item-row">
-              <div>
-                <strong>{x.name}</strong>
-                {x.position && <span className="position-tag"> — {x.position}</span>}
-                {x.year && <span className="muted"> ({x.year})</span>}
-                {x.techUsed?.length > 0 && (
-                  <div className="item-tech-tags">
-                    {x.techUsed.map(t => <span key={t} className="tag">{t}</span>)}
-                  </div>
-                )}
-              </div>
-              <button type="button" className="link remove-btn" onClick={() => removeFrom('hackathons', i)}>Remove</button>
-            </li>
-          ))}
-          {(!p.hackathons || p.hackathons.length === 0) && (
-            <p className="muted empty-note">No hackathons added yet.</p>
-          )}
-        </ul>
-
-        <div className="form-sub-box">
-          <h3>+ Add a Hackathon</h3>
-          <div className="row">
-            <input
-              placeholder="Hackathon Name (e.g. Smart India Hackathon, ETHGlobal)"
-              value={hack.name}
-              onChange={e => setHack({ ...hack, name: e.target.value })}
-            />
-            <input
-              placeholder="Position (e.g. 1st Place Winner, Finalist, Participant)"
-              value={hack.position}
-              onChange={e => setHack({ ...hack, position: e.target.value })}
-            />
-            <input
-              placeholder="Year"
-              type="number"
-              min="2015"
-              max="2030"
-              value={hack.year}
-              onChange={e => setHack({ ...hack, year: e.target.value })}
-            />
-          </div>
-          <label>
-            Tech Used in Hackathon
-            <TagInput
-              value={hack.techUsed}
-              onChange={techUsed => setHack({ ...hack, techUsed })}
-              placeholder="e.g. react, node, mongodb"
-            />
-          </label>
-          <button
-            type="button"
-            className="btn"
-            disabled={!hack.name}
-            onClick={() => addTo('hackathons', { ...hack, year: num(hack.year) }, setHack, blank.hack)}
-          >
-            Add Hackathon
-          </button>
-        </div>
-      </section>
-
-      {/* 7. Competitive Exams & Problem Solving */}
-      <section className="card">
-        <div className="card-section-title">
-          <span className="icon">📊</span>
-          <div>
-            <h2>Competitive Exams & Ratings</h2>
-            <p className="muted">High ranks in exams like GATE, JEE, CAT, or ratings on LeetCode/Codeforces award up to 5 points.</p>
-          </div>
-        </div>
-
-        <ul className="items">
-          {(p.competitiveExams || []).map((x, i) => (
-            <li key={i} className="profile-item-row">
-              <div>
-                <strong>{x.name}</strong>
-                {x.rank ? `, All-India / Global Rank: #${x.rank}` : ''}
-                {x.score ? `, Score / Rating: ${x.score}` : ''}
-                {x.year ? ` (${x.year})` : ''}
-              </div>
-              <button type="button" className="link remove-btn" onClick={() => removeFrom('competitiveExams', i)}>Remove</button>
-            </li>
-          ))}
-          {(!p.competitiveExams || p.competitiveExams.length === 0) && (
-            <p className="muted empty-note">No competitive exams added yet.</p>
-          )}
-        </ul>
-
-        <div className="form-sub-box">
-          <h3>+ Add an Exam or Coding Rating</h3>
-          <div className="row">
-            <input
-              placeholder="Exam / Platform (e.g. GATE CS, LeetCode, Codeforces, CAT)"
-              value={exam.name}
-              onChange={e => setExam({ ...exam, name: e.target.value })}
-            />
-            <input
-              placeholder="Rank (e.g. 142)"
-              type="number"
-              value={exam.rank}
-              onChange={e => setExam({ ...exam, rank: e.target.value })}
-            />
-            <input
-              placeholder="Score / Rating (e.g. 95 or 2100)"
-              type="number"
-              value={exam.score}
-              onChange={e => setExam({ ...exam, score: e.target.value })}
-            />
-            <input
-              placeholder="Year"
-              type="number"
-              min="2015"
-              max="2030"
-              value={exam.year}
-              onChange={e => setExam({ ...exam, year: e.target.value })}
-            />
-          </div>
-          <button
-            type="button"
-            className="btn"
-            disabled={!exam.name}
-            onClick={() =>
-              addTo(
-                'competitiveExams',
-                { name: exam.name, rank: num(exam.rank), score: num(exam.score), year: num(exam.year) },
-                setExam,
-                blank.exam
-              )
-            }
-          >
-            Add Competitive Exam
-          </button>
-        </div>
-      </section>
-
-      <div className="bottom-save-bar">
-        <button className="primary large-btn" onClick={save} disabled={saving}>
-          {saving ? 'Saving Profile Changes…' : 'Save Full Profile & Update Matches'}
+        <button type="submit" className="primary" disabled={saving}>
+          {saving ? 'Saving…' : 'Save Core Details'}
         </button>
+      </form>
+
+      {/* Skills Section */}
+      <div className="card section-card">
+        <div className="section-title-row">
+          <h3>Skills & Technologies ({profile.skills?.length || 0})</h3>
+        </div>
+
+        <form onSubmit={handleAddSkill} className="inline-add-form">
+          <input
+            placeholder="Add a technical skill (e.g. React, Docker, Python)"
+            value={newSkill}
+            onChange={e => setNewSkill(e.target.value)}
+          />
+          <button type="submit" className="secondary">+ Add Skill</button>
+        </form>
+
+        <div className="tags-cloud">
+          {profile.skills?.map(skill => (
+            <span key={skill} className="skill-tag">
+              {skill}
+              <button
+                type="button"
+                className="tag-remove-btn"
+                onClick={() => handleRemoveSkill(skill)}
+                title="Remove skill"
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+          {(!profile.skills || profile.skills.length === 0) && (
+            <p className="muted">No skills added yet. Type a skill or upload your PDF resume above.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Projects Section */}
+      <div className="card section-card">
+        <div className="section-title-row">
+          <h3>Projects ({profile.projects?.length || 0})</h3>
+          <button type="button" className="secondary" onClick={() => setShowProjModal(!showProjModal)}>
+            {showProjModal ? 'Cancel' : '+ Add Project'}
+          </button>
+        </div>
+
+        {showProjModal && (
+          <form onSubmit={handleAddProject} className="modal-inner-form">
+            <label>
+              Project Title *
+              <input
+                required
+                value={projForm.title}
+                onChange={e => setProjForm({ ...projForm, title: e.target.value })}
+              />
+            </label>
+            <label>
+              Description
+              <textarea
+                rows={2}
+                value={projForm.description}
+                onChange={e => setProjForm({ ...projForm, description: e.target.value })}
+              />
+            </label>
+            <label>
+              Tech Stack (comma separated)
+              <input
+                placeholder="react, node, mongodb"
+                value={projForm.techStack}
+                onChange={e => setProjForm({ ...projForm, techStack: e.target.value })}
+              />
+            </label>
+            <label>
+              Project Repository / Demo Link
+              <input
+                placeholder="https://github.com/..."
+                value={projForm.link}
+                onChange={e => setProjForm({ ...projForm, link: e.target.value })}
+              />
+            </label>
+            <button type="submit" className="primary">Save Project</button>
+          </form>
+        )}
+
+        <div className="items-list">
+          {profile.projects?.map(proj => (
+            <div key={proj._id} className="item-row">
+              <div className="item-main">
+                <h4>{proj.title}</h4>
+                {proj.description && <p>{proj.description}</p>}
+                <div className="tags-cloud">
+                  {proj.techStack?.map(t => <span key={t} className="sub-tag">{t}</span>)}
+                </div>
+                {proj.link && <a href={proj.link} target="_blank" rel="noreferrer" className="item-link">View Repo &rarr;</a>}
+              </div>
+              <button type="button" className="danger-btn" onClick={() => handleDeleteProject(proj._id)}>Delete</button>
+            </div>
+          ))}
+          {(!profile.projects || profile.projects.length === 0) && (
+            <p className="muted">No portfolio projects listed. Add projects to boost your match scores.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Hackathons Section */}
+      <div className="card section-card">
+        <div className="section-title-row">
+          <h3>Hackathons & Contests ({profile.hackathons?.length || 0})</h3>
+          <button type="button" className="secondary" onClick={() => setShowHackModal(!showHackModal)}>
+            {showHackModal ? 'Cancel' : '+ Add Hackathon'}
+          </button>
+        </div>
+
+        {showHackModal && (
+          <form onSubmit={handleAddHackathon} className="modal-inner-form">
+            <label>
+              Hackathon Name *
+              <input
+                required
+                value={hackForm.name}
+                onChange={e => setHackForm({ ...hackForm, name: e.target.value })}
+              />
+            </label>
+            <div className="form-grid-2">
+              <label>
+                Year *
+                <input
+                  type="number"
+                  required
+                  value={hackForm.year}
+                  onChange={e => setHackForm({ ...hackForm, year: Number(e.target.value) })}
+                />
+              </label>
+              <label>
+                Status
+                <select
+                  value={hackForm.status}
+                  onChange={e => setHackForm({ ...hackForm, status: e.target.value })}
+                >
+                  <option value="participated">Participated</option>
+                  <option value="won">Won / Placed</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              Position / Recognition
+              <input
+                placeholder="1st Place Winner, Finalist, Best UI Award"
+                value={hackForm.position}
+                onChange={e => setHackForm({ ...hackForm, position: e.target.value })}
+              />
+            </label>
+            <label>
+              Technologies Used
+              <input
+                placeholder="react, node, docker"
+                value={hackForm.techUsed}
+                onChange={e => setHackForm({ ...hackForm, techUsed: e.target.value })}
+              />
+            </label>
+            <button type="submit" className="primary">Save Hackathon</button>
+          </form>
+        )}
+
+        <div className="items-list">
+          {profile.hackathons?.map(h => (
+            <div key={h._id} className="item-row">
+              <div className="item-main">
+                <h4>{h.name} ({h.year}) &bull; <span className={h.status === 'won' ? 'badge-win' : 'badge-part'}>{h.status === 'won' ? '🏆 ' + (h.position || 'Winner') : 'Participant'}</span></h4>
+                <div className="tags-cloud">
+                  {h.techUsed?.map(t => <span key={t} className="sub-tag">{t}</span>)}
+                </div>
+              </div>
+              <button type="button" className="danger-btn" onClick={() => handleDeleteHackathon(h._id)}>Delete</button>
+            </div>
+          ))}
+          {(!profile.hackathons || profile.hackathons.length === 0) && (
+            <p className="muted">No hackathons listed yet.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Experience & Internships Section */}
+      <div className="card section-card">
+        <div className="section-title-row">
+          <h3>Work Experience & Internships</h3>
+          <div className="btn-group">
+            <button type="button" className="secondary" onClick={() => setShowExpModal(!showExpModal)}>
+              {showExpModal ? 'Cancel' : '+ Add Job'}
+            </button>
+            <button type="button" className="secondary" onClick={() => setShowInternModal(!showInternModal)}>
+              {showInternModal ? 'Cancel' : '+ Add Internship'}
+            </button>
+          </div>
+        </div>
+
+        {showExpModal && (
+          <form onSubmit={handleAddExperience} className="modal-inner-form">
+            <h4>Add Full-Time / Contract Experience</h4>
+            <div className="form-grid-2">
+              <label>
+                Company *
+                <input required value={expForm.company} onChange={e => setExpForm({ ...expForm, company: e.target.value })} />
+              </label>
+              <label>
+                Role *
+                <input required value={expForm.role} onChange={e => setExpForm({ ...expForm, role: e.target.value })} />
+              </label>
+              <label>
+                Years
+                <input type="number" min="0" value={expForm.years} onChange={e => setExpForm({ ...expForm, years: Number(e.target.value) })} />
+              </label>
+              <label>
+                Months
+                <input type="number" min="0" max="11" value={expForm.months} onChange={e => setExpForm({ ...expForm, months: Number(e.target.value) })} />
+              </label>
+            </div>
+            <label>
+              Description
+              <textarea rows={2} value={expForm.description} onChange={e => setExpForm({ ...expForm, description: e.target.value })} />
+            </label>
+            <button type="submit" className="primary">Save Experience</button>
+          </form>
+        )}
+
+        {showInternModal && (
+          <form onSubmit={handleAddInternship} className="modal-inner-form">
+            <h4>Add Internship</h4>
+            <div className="form-grid-2">
+              <label>
+                Company *
+                <input required value={internForm.company} onChange={e => setInternForm({ ...internForm, company: e.target.value })} />
+              </label>
+              <label>
+                Role *
+                <input required value={internForm.role} onChange={e => setInternForm({ ...internForm, role: e.target.value })} />
+              </label>
+              <label>
+                Duration Months
+                <input type="number" min="1" max="24" value={internForm.durationMonths} onChange={e => setInternForm({ ...internForm, durationMonths: Number(e.target.value) })} />
+              </label>
+            </div>
+            <button type="submit" className="primary">Save Internship</button>
+          </form>
+        )}
+
+        <div className="items-list">
+          {profile.experience?.map(exp => (
+            <div key={exp._id} className="item-row">
+              <div className="item-main">
+                <h4>{exp.role} &bull; {exp.company}</h4>
+                <p className="muted">{exp.years} yrs {exp.months} mos</p>
+                {exp.description && <p>{exp.description}</p>}
+              </div>
+              <button type="button" className="danger-btn" onClick={() => handleDeleteExperience(exp._id)}>Delete</button>
+            </div>
+          ))}
+
+          {profile.internships?.map(intern => (
+            <div key={intern._id} className="item-row">
+              <div className="item-main">
+                <h4>🎓 {intern.role} (Intern) &bull; {intern.company}</h4>
+                <p className="muted">{intern.duration || `${intern.durationMonths} months`}</p>
+                {intern.description && <p>{intern.description}</p>}
+              </div>
+              <button type="button" className="danger-btn" onClick={() => handleDeleteInternship(intern._id)}>Delete</button>
+            </div>
+          ))}
+
+          {(!profile.experience?.length && !profile.internships?.length) && (
+            <p className="muted">No work experience or internships recorded.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Education Details */}
+      <div className="card section-card">
+        <div className="section-title-row">
+          <h3>Education Details</h3>
+          <button type="button" className="secondary" onClick={() => setShowEduModal(!showEduModal)}>
+            {showEduModal ? 'Cancel' : '+ Add Education Record'}
+          </button>
+        </div>
+
+        {showEduModal && (
+          <form onSubmit={handleAddEducation} className="modal-inner-form">
+            <div className="form-grid-2">
+              <label>
+                Level *
+                <select value={eduForm.level} onChange={e => setEduForm({ ...eduForm, level: e.target.value })}>
+                  <option value="10th / Secondary">10th / Secondary</option>
+                  <option value="12th / Higher Secondary">12th / Higher Secondary</option>
+                  <option value="Degree">Degree / Undergraduate</option>
+                  <option value="Post Graduate">Post Graduate / Master's</option>
+                </select>
+              </label>
+              <label>
+                Board / University
+                <input value={eduForm.boardOrUniversity} onChange={e => setEduForm({ ...eduForm, boardOrUniversity: e.target.value })} />
+              </label>
+              <label>
+                Percentage or CGPA
+                <input type="number" step="0.1" value={eduForm.percentageOrCgpa} onChange={e => setEduForm({ ...eduForm, percentageOrCgpa: Number(e.target.value) })} />
+              </label>
+              <label>
+                Year of Completion
+                <input type="number" value={eduForm.year} onChange={e => setEduForm({ ...eduForm, year: Number(e.target.value) })} />
+              </label>
+            </div>
+            <button type="submit" className="primary">Save Education</button>
+          </form>
+        )}
+
+        <div className="items-list">
+          {profile.education?.map(edu => (
+            <div key={edu._id} className="item-row">
+              <div className="item-main">
+                <h4>{edu.level} &bull; {edu.boardOrUniversity || 'Accredited Institution'}</h4>
+                <p className="muted">Score: {edu.percentageOrCgpa} {edu.year ? `(${edu.year})` : ''}</p>
+              </div>
+              <button type="button" className="danger-btn" onClick={() => handleDeleteEducation(edu._id)}>Delete</button>
+            </div>
+          ))}
+          {(!profile.education || profile.education.length === 0) && (
+            <p className="muted">No education records added yet.</p>
+          )}
+        </div>
       </div>
     </div>
   );

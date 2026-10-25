@@ -1,322 +1,235 @@
+// server/controllers/authController.js
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { hashFile, extractSkills } = require('../utils/resumeParser');
+const Company = require('../models/Company');
+const { signToken } = require('../middleware/auth');
+const { isFreeEmail } = require('../config/emailBlocklist');
+const { sendWelcomeEmail } = require('../utils/emailService');
 
-const sign = user => {
-  const secret = process.env.JWT_SECRET || 'job_portal_fallback_jwt_secret_key_84920';
-  return jwt.sign({ id: user._id, role: user.role }, secret, { expiresIn: '7d' });
-};
+function validatePasswordRule(password) {
+  if (!password || typeof password !== 'string') return false;
+  // At least 8 characters, with at least 1 letter and 1 number
+  return password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password);
+}
 
-const publicUser = u => {
-  const o = u.toObject ? u.toObject() : { ...u };
-  delete o.password;
-  return o;
-};
+function validateEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
-const { isValidEmail, isCompanyEmail, extractEmailDomain } = require('../utils/emailValidator');
-const { generateOtp, sendVerificationEmail, sendPasswordResetEmail, getSmtpStatus } = require('../utils/mailer');
-
-exports.register = async (req, res) => {
+// 1. Seeker Registration
+exports.seekerRegister = async (req, res) => {
   try {
-    const { name, email, password, role, phone } = req.body;
-    if (!name || !email || !password)
-      return res.status(400).json({ message: 'Name, email and password are required' });
-    if (password.length < 6)
-      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    const { name, mail_id, email, password, confirmPassword, phone } = req.body;
+    const targetEmail = (mail_id || email || '').trim().toLowerCase();
 
-    const cleanEmail = email.trim().toLowerCase();
-    if (!isValidEmail(cleanEmail)) {
-      return res.status(400).json({ message: 'Please provide a valid email address (e.g. name@domain.com)' });
+    if (!name || !targetEmail || !password || !confirmPassword) {
+      return res.status(400).json({ message: 'Name, mail ID, password, and confirm password are required' });
     }
 
-    const safeRole = role === 'hr' ? 'hr' : 'seeker';
+    if (!validateEmail(targetEmail)) {
+      return res.status(400).json({ message: 'Please provide a valid email address (e.g. user@domain.com)' });
+    }
 
-    // HR accounts must use a valid company domain (no gmail/yahoo/etc.)
-    if (safeRole === 'hr' && !isCompanyEmail(cleanEmail)) {
+    if (!validatePasswordRule(password)) {
       return res.status(400).json({
-        message: 'HR & Employers must register with an official company work email (e.g. name@company.com). Free public emails like Gmail or Yahoo are not permitted for hiring accounts.',
+        message: 'Password must be at least 8 characters long and contain at least one letter and one number',
       });
     }
 
-    const domain = extractEmailDomain(cleanEmail);
-    const otp = generateOtp();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    if (password !== confirmPassword) {
+      return res.status(400).json({ message: 'Confirm password does not match password' });
+    }
 
+    // Check duplicate
+    const existing = await User.findOne({ mail_id: targetEmail });
+    if (existing) {
+      return res.status(409).json({ message: 'An account with this mail ID already exists' });
+    }
+
+    if (phone && phone.trim()) {
+      const existingPhone = await User.findOne({ phone: phone.trim() });
+      if (existingPhone) {
+        return res.status(409).json({ message: 'An account with this phone number already exists' });
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
       name: name.trim(),
-      email: cleanEmail,
+      mail_id: targetEmail,
+      password: hashedPassword,
       phone: phone ? phone.trim() : undefined,
-      role: safeRole,
-      isCompanyEmail: safeRole === 'hr',
-      companyEmailDomain: safeRole === 'hr' ? domain : undefined,
-      password: await bcrypt.hash(password, 10),
-      isEmailVerified: false,
-      otpCode: otp,
-      otpExpiresAt: otpExpires,
-      otpPurpose: 'verify_email',
+      role: 'seeker',
     });
 
-    // Dispatch verification email
-    await sendVerificationEmail({ to: user.email, name: user.name, otp, role: user.role });
+    const token = signToken({ id: user._id, role: 'seeker' });
+
+    // Send welcome email asynchronously (non-blocking)
+    sendWelcomeEmail({ to: user.mail_id, name: user.name, role: 'seeker' }).catch(() => {});
+
+    const userObj = user.toObject();
+    delete userObj.password;
 
     res.status(201).json({
-      message: `Registration successful! A 6-digit verification code has been dispatched to ${cleanEmail}.`,
-      requiresOtp: true,
-      email: user.email,
-      role: user.role,
+      message: 'Seeker registered successfully',
+      token,
+      user: userObj,
     });
-  } catch (e) {
-    if (e.code === 11000) return res.status(409).json({ message: 'Email or phone already registered' });
-    res.status(500).json({ message: e.message });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ message: 'Duplicate account details: mail ID or phone already registered' });
+    }
+    res.status(500).json({ message: err.message });
   }
 };
 
-exports.verifyOtp = async (req, res) => {
+// 2. Seeker Login
+exports.seekerLogin = async (req, res) => {
   try {
-    const { email, otp } = req.body;
-    if (!email || !otp) return res.status(400).json({ message: 'Email and 6-digit OTP code are required' });
+    const { mail_id, email, password } = req.body;
+    const targetEmail = (mail_id || email || '').trim().toLowerCase();
 
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanOtp = otp.toString().trim();
+    if (!targetEmail || !password) {
+      return res.status(400).json({ message: 'Mail ID and password are required' });
+    }
 
-    const user = await User.findOne({ email: cleanEmail }).populate('company');
-    if (!user) return res.status(404).json({ message: 'User account not found' });
+    const user = await User.findOne({ mail_id: targetEmail });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ message: 'Invalid mail ID or password' });
+    }
 
-    if (user.isEmailVerified) {
-      return res.json({
-        message: 'Email is already verified',
-        token: sign(user),
-        user: publicUser(user),
+    const token = signToken({ id: user._id, role: 'seeker' });
+    const userObj = user.toObject();
+    delete userObj.password;
+
+    res.json({
+      message: 'Signed in successfully',
+      token,
+      user: userObj,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// 3. Company Registration (Admin page)
+exports.companyRegister = async (req, res) => {
+  try {
+    const { name, location, mail_id, email, password, confirmPassword, website, industry, description } = req.body;
+    const targetEmail = (mail_id || email || '').trim().toLowerCase();
+
+    if (!name || !location || !targetEmail || !password || !confirmPassword) {
+      return res.status(400).json({
+        message: 'Company name, area of location, company mail ID, password, and confirm password are required',
       });
     }
 
-    if (user.otpPurpose !== 'verify_email') {
-      return res.status(400).json({ message: 'Invalid OTP purpose. Please request a new verification code.' });
+    if (!validateEmail(targetEmail)) {
+      return res.status(400).json({ message: 'Please provide a valid company email address' });
     }
 
-    if (!user.otpCode || user.otpCode !== cleanOtp) {
-      return res.status(400).json({ message: 'Incorrect OTP verification code. Please check and try again.' });
-    }
-
-    if (!user.otpExpiresAt || user.otpExpiresAt < new Date()) {
-      return res.status(400).json({ message: 'Verification code has expired. Please click Resend OTP to get a new code.' });
-    }
-
-    // Activate account
-    user.isEmailVerified = true;
-    user.emailVerifiedAt = new Date();
-    user.otpCode = undefined;
-    user.otpExpiresAt = undefined;
-    user.otpPurpose = undefined;
-    await user.save();
-
-    res.json({
-      message: 'Email successfully verified! Welcome aboard.',
-      token: sign(user),
-      user: publicUser(user),
-    });
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-};
-
-exports.resendOtp = async (req, res) => {
-  try {
-    const { email, purpose } = req.body;
-    if (!email) return res.status(400).json({ message: 'Email is required' });
-
-    const cleanEmail = email.trim().toLowerCase();
-    const user = await User.findOne({ email: cleanEmail });
-    if (!user) return res.status(404).json({ message: 'No account found with this email' });
-
-    const targetPurpose = purpose === 'reset_password' ? 'reset_password' : 'verify_email';
-    const otp = generateOtp();
-    user.otpCode = otp;
-    user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    user.otpPurpose = targetPurpose;
-    await user.save();
-
-    if (targetPurpose === 'reset_password') {
-      await sendPasswordResetEmail({ to: user.email, name: user.name, otp });
-    } else {
-      await sendVerificationEmail({ to: user.email, name: user.name, otp, role: user.role });
-    }
-
-    res.json({
-      message: `A fresh 6-digit OTP code has been sent to ${cleanEmail}.`,
-      email: user.email,
-    });
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-};
-
-exports.forgotPassword = async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ message: 'Please provide your registered email address' });
-
-    const cleanEmail = email.trim().toLowerCase();
-    const user = await User.findOne({ email: cleanEmail });
-    if (!user) return res.status(404).json({ message: 'No registered user found with this email address' });
-
-    const otp = generateOtp();
-    user.otpCode = otp;
-    user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    user.otpPurpose = 'reset_password';
-    await user.save();
-
-    await sendPasswordResetEmail({ to: user.email, name: user.name, otp });
-
-    res.json({
-      message: `Password reset OTP has been dispatched to ${cleanEmail}.`,
-      email: user.email,
-      requiresOtp: true,
-    });
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-};
-
-exports.resetPassword = async (req, res) => {
-  try {
-    const { email, otp, newPassword } = req.body;
-    if (!email || !otp || !newPassword) {
-      return res.status(400).json({ message: 'Email, OTP code, and new password are required' });
-    }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanOtp = otp.toString().trim();
-
-    const user = await User.findOne({ email: cleanEmail }).populate('company');
-    if (!user) return res.status(404).json({ message: 'User account not found' });
-
-    if (user.otpPurpose !== 'reset_password') {
-      return res.status(400).json({ message: 'No active password reset request found. Please request a new OTP.' });
-    }
-
-    if (!user.otpCode || user.otpCode !== cleanOtp) {
-      return res.status(400).json({ message: 'Invalid password reset OTP code. Please check and try again.' });
-    }
-
-    if (!user.otpExpiresAt || user.otpExpiresAt < new Date()) {
-      return res.status(400).json({ message: 'Password reset code has expired. Please request a new code.' });
-    }
-
-    // Hash and update password
-    user.password = await bcrypt.hash(newPassword, 10);
-    user.otpCode = undefined;
-    user.otpExpiresAt = undefined;
-    user.otpPurpose = undefined;
-    user.isEmailVerified = true; // Proved ownership of the registered email address
-    await user.save();
-
-    res.json({
-      message: 'Password successfully updated! You have been securely authenticated.',
-      token: sign(user),
-      user: publicUser(user),
-    });
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-};
-
-exports.login = async (req, res) => {
-  try {
-    const cleanEmail = (req.body.email || '').trim().toLowerCase();
-    const user = await User.findOne({ email: cleanEmail }).populate('company');
-    if (!user || !(await bcrypt.compare(req.body.password || '', user.password)))
-      return res.status(401).json({ message: 'Invalid email or password' });
-
-    // Enforce email verification if unverified
-    if (!user.isEmailVerified) {
-      const otp = generateOtp();
-      user.otpCode = otp;
-      user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-      user.otpPurpose = 'verify_email';
-      await user.save();
-
-      await sendVerificationEmail({ to: user.email, name: user.name, otp, role: user.role });
-
-      return res.status(403).json({
-        requiresOtp: true,
-        message: 'Your email address is not yet verified. A 6-digit OTP code has been sent to your inbox.',
-        email: user.email,
-        role: user.role,
+    // Corporate email enforcement: reject free providers
+    if (isFreeEmail(targetEmail)) {
+      return res.status(400).json({
+        message: 'The mail_id must be a company email. Free providers (gmail, yahoo, outlook, hotmail, icloud, proton, etc.) are not allowed for company registration.',
       });
     }
 
-    res.json({ token: sign(user), user: publicUser(user) });
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-};
-
-exports.me = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select('-password').populate('company');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json(user);
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-};
-
-exports.updateProfile = async (req, res) => {
-  try {
-    const allowed = [
-      'name', 'phone', 'headline', 'location', 'github', 'linkedin',
-      'skills', 'experienceYears', 'internships', 'competitiveExams',
-      'hackathons', 'projects',
-    ];
-    const update = {};
-    allowed.forEach(k => {
-      if (req.body[k] !== undefined) update[k] = req.body[k];
-    });
-
-    const user = await User.findByIdAndUpdate(req.user.id, update, { new: true, runValidators: true })
-      .select('-password');
-    res.json(user);
-  } catch (e) {
-    res.status(400).json({ message: e.message });
-  }
-};
-
-exports.uploadResume = async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ message: 'Please attach a PDF resume file' });
-
-    const detected = await extractSkills(req.file.path);
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    user.resumeUrl = req.file.path;
-    user.resumeFileName = req.file.originalname;
-    user.resumeHash = hashFile(req.file.path);
-
-    // Merge detected skills
-    if (detected.length > 0) {
-      user.skills = Array.from(new Set([...(user.skills || []), ...detected]));
+    if (!validatePasswordRule(password)) {
+      return res.status(400).json({
+        message: 'Password must be at least 8 characters long and contain at least one letter and one number',
+      });
     }
 
-    await user.save();
-    res.json({
-      resumeUrl: user.resumeUrl,
-      resumeFileName: user.resumeFileName,
-      detectedSkills: detected,
-      skills: user.skills,
-      message: `Resume parsed successfully. Found ${detected.length} relevant technical skills!`,
+    if (password !== confirmPassword) {
+      return res.status(400).json({ message: 'Confirm password does not match password' });
+    }
+
+    // Check duplicate company name or email
+    const existingEmail = await Company.findOne({ mail_id: targetEmail });
+    if (existingEmail) {
+      return res.status(409).json({ message: 'A company account with this mail ID already exists' });
+    }
+
+    const existingName = await Company.findOne({ name: name.trim() });
+    if (existingName) {
+      return res.status(409).json({ message: 'A company with this name is already registered' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const company = await Company.create({
+      name: name.trim(),
+      location: location.trim(),
+      mail_id: targetEmail,
+      password: hashedPassword,
+      website: website ? website.trim() : '',
+      industry: industry ? industry.trim() : '',
+      description: description ? description.trim() : '',
+      role: 'company',
     });
-  } catch (e) {
-    res.status(500).json({ message: e.message });
+
+    const token = signToken({ id: company._id, role: 'company' });
+
+    sendWelcomeEmail({ to: company.mail_id, name: company.name, role: 'company' }).catch(() => {});
+
+    const compObj = company.toObject();
+    delete compObj.password;
+
+    res.status(201).json({
+      message: 'Company registered successfully',
+      token,
+      company: compObj,
+      user: compObj, // convenience for frontend auth state
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ message: 'Company name or mail ID already registered' });
+    }
+    res.status(500).json({ message: err.message });
   }
 };
 
-exports.getSmtpStatus = (req, res) => {
-  res.json(getSmtpStatus());
+// 4. Company Login
+exports.companyLogin = async (req, res) => {
+  try {
+    const { mail_id, email, password } = req.body;
+    const targetEmail = (mail_id || email || '').trim().toLowerCase();
+
+    if (!targetEmail || !password) {
+      return res.status(400).json({ message: 'Company mail ID and password are required' });
+    }
+
+    const company = await Company.findOne({ mail_id: targetEmail });
+    if (!company || !(await bcrypt.compare(password, company.password))) {
+      return res.status(401).json({ message: 'Invalid company mail ID or password' });
+    }
+
+    const token = signToken({ id: company._id, role: 'company' });
+    const compObj = company.toObject();
+    delete compObj.password;
+
+    res.json({
+      message: 'Company authenticated successfully',
+      token,
+      company: compObj,
+      user: compObj,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
 
+// 5. GET /api/auth/me
+exports.getMe = async (req, res) => {
+  try {
+    if (req.company) {
+      return res.json({ role: 'company', user: req.company });
+    }
+    if (req.seeker) {
+      return res.json({ role: 'seeker', user: req.seeker });
+    }
+    res.status(404).json({ message: 'Profile not found' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

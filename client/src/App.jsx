@@ -1,42 +1,63 @@
+// client/src/App.jsx
 import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, NavLink } from 'react-router-dom';
+import { Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import api from './api/axios';
+
 import Login from './pages/Login';
 import Register from './pages/Register';
-import VerifyOtp from './pages/VerifyOtp';
-import ForgotPassword from './pages/ForgotPassword';
-import SeekerProfile from './pages/SeekerProfile';
 import JobList from './pages/JobList';
+import JobDetail from './pages/JobDetail';
+import SeekerProfile from './pages/SeekerProfile';
 import MyApplications from './pages/MyApplications';
-import HRDashboard from './pages/HRDashboard';
-import RankedCandidates from './pages/RankedCandidates';
+import Notifications from './pages/Notifications';
+import CompanyDashboard from './pages/CompanyDashboard';
+import PostJob from './pages/PostJob';
+import CompanyApplicants from './pages/CompanyApplicants';
 
 function Guard({ role, children }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (role && user.role !== role) return <Navigate to="/" replace />;
+  if (role) {
+    if (role === 'seeker' && user.role !== 'seeker' && user.role !== 'user') {
+      return <Navigate to="/company/dashboard" replace />;
+    }
+    if (role === 'company' && user.role !== 'company') {
+      return <Navigate to="/jobs" replace />;
+    }
+  }
   return children;
 }
 
 export default function App() {
-  const { user, logout } = useAuth();
+  const { user, isCompany, isSeeker, logout } = useAuth();
+  const nav = useNavigate();
   const [theme, setTheme] = useState(() => localStorage.getItem('app_theme') || 'light');
-  const [smtpStatus, setSmtpStatus] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('app_theme', theme);
   }, [theme]);
 
+  // Fetch unread count periodically for logged-in seekers
   useEffect(() => {
-    api.get('/auth/smtp-status')
-      .then(r => setSmtpStatus(r.data))
-      .catch(() => {});
-  }, []);
+    if (user && (user.role === 'seeker' || user.role === 'user')) {
+      api.get('/notifications/unread-count')
+        .then(r => setUnreadCount(r.data?.unreadCount || 0))
+        .catch(() => {});
+    } else {
+      setUnreadCount(0);
+    }
+  }, [user]);
 
   const toggleTheme = () => setTheme(t => (t === 'light' ? 'dark' : 'light'));
-  const home = !user ? '/login' : user.role === 'hr' ? '/hr' : '/jobs';
+
+  const home = !user
+    ? '/jobs'
+    : user.role === 'company'
+    ? '/company/dashboard'
+    : '/jobs';
 
   return (
     <>
@@ -45,39 +66,42 @@ export default function App() {
           <NavLink to="/" className="brand-logo">
             <span className="brand-icon">⚡</span>
             <div className="brand-text">
-              <span className="brand-title">SmartMatch</span>
-              <span className="brand-sub">Enterprise Portal</span>
+              <span className="brand-title">SmartJob</span>
+              <span className="brand-sub">Matching & Verification Portal</span>
             </div>
           </NavLink>
+
           {user && (
-            <span className={`role-badge ${user.role === 'hr' ? 'role-hr' : 'role-seeker'}`}>
-              {user.role === 'hr' ? '🏢 HR & Recruiter' : '👤 Candidate'}
+            <span className={`role-badge ${isCompany ? 'role-company' : 'role-seeker'}`}>
+              {isCompany ? '🏢 Company Employer (Admin)' : '👤 Job Seeker'}
             </span>
           )}
-          <span className="smtp-nav-badge" title="Transactional mail powered by Nodemailer & Brevo (Bravo) SMTP">
-            <span className="smtp-dot"></span>
-            Brevo SMTP Secure
-          </span>
         </div>
 
         <nav>
-          {user?.role === 'seeker' && (
+          {isSeeker && (
             <>
               <NavLink to="/jobs">Explore Jobs</NavLink>
               <NavLink to="/applications">My Applications</NavLink>
-              <NavLink to="/profile">My Profile & Skills</NavLink>
+              <NavLink to="/profile">Portfolio Profile</NavLink>
+              <NavLink to="/notifications" className="notif-nav-link">
+                Alerts
+                {unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
+              </NavLink>
             </>
           )}
 
-          {user?.role === 'hr' && (
+          {isCompany && (
             <>
-              <NavLink to="/hr">Dashboard & Vacancies</NavLink>
+              <NavLink to="/company/dashboard">Employer Dashboard</NavLink>
+              <NavLink to="/company/post-job" className="nav-btn-highlight">+ Post Job</NavLink>
             </>
           )}
 
           {!user && (
             <>
-              <NavLink to="/login">Log in</NavLink>
+              <NavLink to="/jobs">Browse Jobs</NavLink>
+              <NavLink to="/login">Sign In</NavLink>
               <NavLink to="/register" className="nav-btn-highlight">Create Account</NavLink>
             </>
           )}
@@ -87,7 +111,7 @@ export default function App() {
             className="theme-toggle-btn"
             onClick={toggleTheme}
             title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
-            aria-label="Toggle dark/light mode"
+            aria-label="Toggle dark and light mode"
           >
             {theme === 'light' ? '🌙' : '☀️'}
           </button>
@@ -95,7 +119,9 @@ export default function App() {
           {user && (
             <div className="user-menu">
               <span className="user-name">{user.name}</span>
-              <button className="btn-logout" onClick={logout} title="Sign Out">Log out</button>
+              <button className="btn-logout" onClick={() => { logout(); nav('/login'); }} title="Sign Out">
+                Sign Out
+              </button>
             </div>
           )}
         </nav>
@@ -106,17 +132,19 @@ export default function App() {
           <Route path="/" element={<Navigate to={home} replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/verify-otp" element={<VerifyOtp />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/jobs" element={<JobList />} />
+          <Route path="/jobs/:id" element={<JobDetail />} />
 
-          {/* Candidate Routes */}
-          <Route path="/jobs" element={<Guard role="seeker"><JobList /></Guard>} />
-          <Route path="/applications" element={<Guard role="seeker"><MyApplications /></Guard>} />
+          {/* Seeker Protected Routes */}
           <Route path="/profile" element={<Guard role="seeker"><SeekerProfile /></Guard>} />
+          <Route path="/applications" element={<Guard role="seeker"><MyApplications /></Guard>} />
+          <Route path="/notifications" element={<Guard role="seeker"><Notifications /></Guard>} />
 
-          {/* HR & Recruiter Routes */}
-          <Route path="/hr" element={<Guard role="hr"><HRDashboard /></Guard>} />
-          <Route path="/hr/jobs/:jobId" element={<Guard role="hr"><RankedCandidates /></Guard>} />
+          {/* Company Protected Routes (Admin Portal) */}
+          <Route path="/company/dashboard" element={<Guard role="company"><CompanyDashboard /></Guard>} />
+          <Route path="/company/post-job" element={<Guard role="company"><PostJob /></Guard>} />
+          <Route path="/company/jobs/:id/edit" element={<Guard role="company"><PostJob /></Guard>} />
+          <Route path="/company/jobs/:id/applicants" element={<Guard role="company"><CompanyApplicants /></Guard>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

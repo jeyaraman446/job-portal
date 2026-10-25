@@ -1,51 +1,100 @@
+// client/src/pages/Register.jsx
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { errMsg } from '../api/axios';
 
-const PUBLIC_EMAIL_DOMAINS = [
-  'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
-  'icloud.com', 'aol.com', 'proton.me', 'zoho.com', 'mail.com'
+const FREE_PROVIDERS = [
+  'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com',
+  'icloud.com', 'proton.me', 'protonmail.com', 'zoho.com', 'mail.com', 'aol.com',
 ];
 
 export default function Register() {
-  const { register } = useAuth();
+  const { seekerRegister, companyRegister } = useAuth();
   const nav = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', role: 'seeker' });
+
+  const [role, setRole] = useState('seeker'); // 'seeker' | 'company'
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const set = k => e => setForm({ ...form, [k]: e.target.value });
 
-  const isPublicDomain = email => {
+  // Seeker state
+  const [seekerForm, setSeekerForm] = useState({
+    name: '',
+    mail_id: '',
+    password: '',
+    confirmPassword: '',
+    phone: '',
+  });
+
+  // Company state
+  const [companyForm, setCompanyForm] = useState({
+    name: '',
+    location: '',
+    mail_id: '',
+    password: '',
+    confirmPassword: '',
+    website: '',
+    industry: '',
+    description: '',
+  });
+
+  const isFreeDomain = email => {
     const domain = (email || '').split('@')[1]?.toLowerCase();
-    return domain && PUBLIC_EMAIL_DOMAINS.includes(domain);
+    return domain && FREE_PROVIDERS.includes(domain);
   };
 
-  const submit = async e => {
+  const validatePassword = pwd => {
+    return pwd && pwd.length >= 8 && /[A-Za-z]/.test(pwd) && /\d/.test(pwd);
+  };
+
+  const submitSeeker = async e => {
     e.preventDefault();
     setError('');
 
-    // Pre-flight validation for HR company email
-    if (form.role === 'hr' && isPublicDomain(form.email)) {
-      setError('HR & Employer accounts must register with an official company work email (e.g. name@company.com). Free email providers like Gmail or Yahoo are not permitted for hiring.');
+    if (!validatePassword(seekerForm.password)) {
+      setError('Password must be at least 8 characters long and contain both letters and numbers.');
+      return;
+    }
+
+    if (seekerForm.password !== seekerForm.confirmPassword) {
+      setError('Confirm password does not match password.');
       return;
     }
 
     setLoading(true);
     try {
-      const res = await register(form);
-      if (res?.requiresOtp) {
-        nav('/verify-otp', {
-          state: {
-            email: form.email,
-            role: form.role,
-            message: res.message || 'Verification code sent to your email!',
-          },
-        });
-      } else {
-        const u = res.user || res;
-        nav(u?.role === 'hr' ? '/hr' : '/profile');
-      }
+      await seekerRegister(seekerForm);
+      nav('/profile');
+    } catch (err) {
+      setError(errMsg(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitCompany = async e => {
+    e.preventDefault();
+    setError('');
+
+    if (isFreeDomain(companyForm.mail_id)) {
+      setError('Company registration requires an official work email (e.g. name@company.com). Free providers (Gmail, Yahoo, Outlook, etc.) are blocked.');
+      return;
+    }
+
+    if (!validatePassword(companyForm.password)) {
+      setError('Password must be at least 8 characters long and contain both letters and numbers.');
+      return;
+    }
+
+    if (companyForm.password !== companyForm.confirmPassword) {
+      setError('Confirm password does not match password.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await companyRegister(companyForm);
+      nav('/company/dashboard');
     } catch (err) {
       setError(errMsg(err));
     } finally {
@@ -55,101 +104,183 @@ export default function Register() {
 
   return (
     <div className="auth-container">
-      <form className="card narrow auth-card" onSubmit={submit}>
+      <div className="card narrow auth-card">
         <div className="auth-header">
           <div className="auth-icon-badge">🚀</div>
-          <h1>Create Your Account</h1>
-          <p className="muted">Join SmartMatch Portal for verified skill matching and verified company hiring.</p>
+          <h1>Create an Account</h1>
+          <p className="muted">Join Smart Job Portal for verified skill matching and direct company hiring.</p>
+        </div>
+
+        {/* Account Role Selector */}
+        <div className="role-selector-box">
+          <label className="section-subtitle">Account Type</label>
+          <div className="seg" role="radiogroup" aria-label="Account Type">
+            <button
+              type="button"
+              className={role === 'seeker' ? 'on' : ''}
+              onClick={() => { setRole('seeker'); setError(''); }}
+            >
+              👤 Job Seeker (User)
+            </button>
+            <button
+              type="button"
+              className={role === 'company' ? 'on' : ''}
+              onClick={() => { setRole('company'); setError(''); }}
+            >
+              🏢 Company (Employer Admin)
+            </button>
+          </div>
         </div>
 
         {error && <div className="error-banner" role="alert">{error}</div>}
 
-        <div className="role-selector-box">
-          <label className="section-subtitle">Account Type</label>
-          <div className="seg" role="radiogroup" aria-label="Account type">
-            <button
-              type="button"
-              className={form.role === 'seeker' ? 'on' : ''}
-              onClick={() => { setForm({ ...form, role: 'seeker' }); setError(''); }}
-            >
-              👤 Job Seeker / Candidate
-            </button>
-            <button
-              type="button"
-              className={form.role === 'hr' ? 'on' : ''}
-              onClick={() => { setForm({ ...form, role: 'hr' }); setError(''); }}
-            >
-              🏢 HR / Employer
-            </button>
-          </div>
-        </div>
+        {role === 'seeker' ? (
+          <form onSubmit={submitSeeker} className="auth-form">
+            <label>
+              Full Name *
+              <input
+                required
+                placeholder="Arun Kumar"
+                value={seekerForm.name}
+                onChange={e => setSeekerForm({ ...seekerForm, name: e.target.value })}
+              />
+            </label>
 
-        {form.role === 'hr' ? (
-          <div className="corporate-policy-banner">
-            <span className="policy-icon">💼</span>
-            <div>
-              <strong>Corporate Email Verification:</strong>
-              <p>Recruiters must register with an official work email address (e.g. <code>hr@company.com</code>). You will also be asked to submit proof of company registration.</p>
-            </div>
-          </div>
+            <label>
+              Mail ID *
+              <input
+                type="email"
+                required
+                placeholder="arun@example.com"
+                value={seekerForm.mail_id}
+                onChange={e => setSeekerForm({ ...seekerForm, mail_id: e.target.value })}
+              />
+            </label>
+
+            <label>
+              Phone Number <span className="muted-text">(Optional)</span>
+              <input
+                placeholder="+1 (555) 000-0000"
+                value={seekerForm.phone}
+                onChange={e => setSeekerForm({ ...seekerForm, phone: e.target.value })}
+              />
+            </label>
+
+            <label>
+              Password * <span className="muted-text">(min 8 chars, letter + number)</span>
+              <input
+                type="password"
+                required
+                minLength={8}
+                placeholder="••••••••"
+                value={seekerForm.password}
+                onChange={e => setSeekerForm({ ...seekerForm, password: e.target.value })}
+              />
+            </label>
+
+            <label>
+              Confirm Password *
+              <input
+                type="password"
+                required
+                minLength={8}
+                placeholder="••••••••"
+                value={seekerForm.confirmPassword}
+                onChange={e => setSeekerForm({ ...seekerForm, confirmPassword: e.target.value })}
+              />
+            </label>
+
+            <button type="submit" className="primary full-width" disabled={loading}>
+              {loading ? 'Creating Account…' : 'Register Seeker Account'}
+            </button>
+          </form>
         ) : (
-          <div className="seeker-policy-banner">
-            <span className="policy-icon">✉️</span>
-            <div>
-              <strong>Candidate Registration:</strong>
-              <p>Register with your active email address to receive real-time interview invitations and status alerts.</p>
+          <form onSubmit={submitCompany} className="auth-form">
+            <div className="corporate-policy-banner">
+              <span className="policy-icon">💼</span>
+              <div>
+                <strong>Company Account Verification:</strong>
+                <p>Company accounts must register with an official domain mail ID (no Gmail, Yahoo, etc.).</p>
+              </div>
             </div>
-          </div>
+
+            <label>
+              Company Name *
+              <input
+                required
+                placeholder="TechCorp Systems"
+                value={companyForm.name}
+                onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })}
+              />
+            </label>
+
+            <label>
+              Area of Location *
+              <input
+                required
+                placeholder="San Francisco, CA"
+                value={companyForm.location}
+                onChange={e => setCompanyForm({ ...companyForm, location: e.target.value })}
+              />
+            </label>
+
+            <label>
+              Company Mail ID *
+              <input
+                type="email"
+                required
+                placeholder="recruiting@yourcompany.com"
+                value={companyForm.mail_id}
+                onChange={e => setCompanyForm({ ...companyForm, mail_id: e.target.value })}
+              />
+              {companyForm.mail_id && isFreeDomain(companyForm.mail_id) && (
+                <span className="warn-text">⚠️ Please use your company domain (e.g. @yourcompany.com), not a free email provider.</span>
+              )}
+            </label>
+
+            <label>
+              Company Website <span className="muted-text">(Optional)</span>
+              <input
+                placeholder="https://yourcompany.com"
+                value={companyForm.website}
+                onChange={e => setCompanyForm({ ...companyForm, website: e.target.value })}
+              />
+            </label>
+
+            <label>
+              Password * <span className="muted-text">(min 8 chars, letter + number)</span>
+              <input
+                type="password"
+                required
+                minLength={8}
+                placeholder="••••••••"
+                value={companyForm.password}
+                onChange={e => setCompanyForm({ ...companyForm, password: e.target.value })}
+              />
+            </label>
+
+            <label>
+              Confirm Password *
+              <input
+                type="password"
+                required
+                minLength={8}
+                placeholder="••••••••"
+                value={companyForm.confirmPassword}
+                onChange={e => setCompanyForm({ ...companyForm, confirmPassword: e.target.value })}
+              />
+            </label>
+
+            <button type="submit" className="primary full-width" disabled={loading}>
+              {loading ? 'Registering Company…' : 'Register Company Account'}
+            </button>
+          </form>
         )}
 
-        <label>
-          Full Name *
-          <input required placeholder={form.role === 'hr' ? 'Sarah Jenkins' : 'Arun Kumar'} value={form.name} onChange={set('name')} />
-        </label>
-
-        <label>
-          {form.role === 'hr' ? 'Official Company Work Email *' : 'Email Address *'}
-          <input
-            type="email"
-            required
-            placeholder={form.role === 'hr' ? 'recruiter@yourcompany.com' : 'you@example.com'}
-            value={form.email}
-            onChange={set('email')}
-          />
-          {form.role === 'hr' && form.email && isPublicDomain(form.email) && (
-            <span className="warn-text">⚠️ Please use your official corporate domain (not @{form.email.split('@')[1]}).</span>
-          )}
-        </label>
-
-        <label>
-          Contact Phone <span className="muted-text">(Optional)</span>
-          <input placeholder="+1 (555) 000-0000" value={form.phone} onChange={set('phone')} />
-        </label>
-
-        <label>
-          Password <span className="muted-text">(Minimum 6 characters)</span>
-          <input
-            type="password"
-            minLength={6}
-            required
-            placeholder="••••••••"
-            value={form.password}
-            onChange={set('password')}
-          />
-        </label>
-
-        <button className="primary" disabled={loading}>
-          {loading ? 'Creating Account…' : form.role === 'hr' ? 'Register Verified Employer Account' : 'Register Candidate Account'}
-        </button>
-
         <p className="muted auth-footer-text">
-          Already registered? <Link to="/login">Log in here</Link>
+          Already registered? <Link to="/login">Sign in here</Link>
         </p>
-
-        <div className="smtp-security-seal">
-          <span>🔒 Real-time 6-digit OTP dispatched via Brevo (Bravo) SMTP Relay</span>
-        </div>
-      </form>
+      </div>
     </div>
   );
 }

@@ -1,100 +1,162 @@
-# Smart Job Portal with Resume Matching (MERN Stack)
+# ⚡ Smart Job Portal with Intelligent Resume Matching
 
-A complete, production-grade **MERN Stack Job Portal** designed to solve recruiter screening fatigue and candidate qualification mismatch through multi-variable candidate scoring, enterprise company verification with official business ID proof, corporate email validation, and strict duplicate-application prevention.
-
----
-
-## 🚀 Key Highlights & Architecture
-
-### 1. 🔐 Email OTP Verification & Forgot Password Recovery
-- **6-Digit One-Time Passcode (OTP)**: Every new registration (both HR recruiters and candidate job seekers) generates and dispatches an authentic 6-digit OTP code to the user's email address.
-- **Enterprise HTML Email Templates**: Responsive, branded email layouts with security alerts, role badges, and clear 10-minute expiration countdowns.
-- **Dedicated Split-Input OTP Screen**: 6-digit auto-advancing input boxes, keyboard backspace handling, clipboard paste support, and 60-second resend cooldown timer.
-- **Self-Service Forgot Password Wizard**: Multi-step flow allowing users to verify ownership with an OTP and set a new password, complete with a real-time password strength meter.
-- **Developer/Demo Test Preview Helper**: Automatically exposes a "Dev/Local Preview OTP" badge with a 1-click "Auto-fill Code" button during development/testing so evaluations can be performed without requiring a live external SMTP mailbox.
-
-### 2. 🛡️ Company Verification & Anti-Fraud Security
-- **Corporate Work Email Required (`company@mail.com`)**: Recruiters and HR managers cannot register with personal public webmail (e.g. `@gmail.com`, `@yahoo.com`, `@hotmail.com`, `@outlook.com`). Only legitimate custom corporate domains are permitted.
-- **Valid Company ID Proof Upload**: Employers submit official legal documents (Certificate of Incorporation, Tax Registration / EIN / GSTIN, Commercial Business License, or Corporate ID Badge).
-- **Company Verification Workflow**:
-  - `Verified Employer ✓`: Verified badge displayed across all job vacancy listings, establishing high trust with candidates.
-  - `Pending Verification ⏳`: Displayed while business documents are queued for compliance review.
-  - One-click admin simulation review button built directly into the HR dashboard for easy demonstration and evaluation.
-
-### 2. 🎯 Intelligent Multi-Factor Matching Algorithm (out of 100)
-- **Required Skills (40 pts)**: Exact and normalized synonym matching against job-critical requirements (e.g., `React.js` ↔ `React`, `Node.js` ↔ `Node`).
-- **Preferred Skills (15 pts)**: Bonus weight for nice-to-have capabilities.
-- **Projects Built (15 pts)**: Evaluates project portfolio relevance to job skills + live GitHub/demo links.
-- **Full-Time Experience (8 pts)**: Evaluates years of full-time professional industry experience against `minExperience`.
-- **Internships Attended (7 pts)**: Evaluates practical internships and relevant tech stack exposure.
-- **Hackathons Attended & Won (10 pts)**: Rewards participation, podium finishes (`Winner`, `Finalist`, `Top 3`), and tech used.
-- **Competitive Exams & Problem Solving (5 pts)**: Evaluates ranks and scores in GATE, LeetCode, Codeforces, JEE, CAT, etc.
-
-### 3. 🚫 Strict Duplicate Application Protection
-- **UI Level**: Immediate reactive feedback, disabling buttons and displaying submission badges.
-- **Controller Level**: Pre-query checks preventing re-application (`409 Conflict`).
-- **Database Index Level**:
-  - `applicationSchema.index({ job: 1, applicant: 1 }, { unique: true })` — guarantees single-candidate constraint at the database storage engine.
-  - `applicationSchema.index({ job: 1, resumeHash: 1 }, { unique: true, sparse: true })` — guarantees the exact same resume document cannot be submitted twice to the same job.
-
-### 4. 🏢 HR & Employer Portal
-- Register verified company profile with Tax ID and upload business verification proof.
-- Post vacancies with required/preferred skills, job types (Full-time, Internship, Remote), experience, vacancies, and salary.
-- Real-time ranked candidates list sorted by smart match score descending.
-- Candidate inspection modal with match breakdown bars, portfolio links, internships, hackathon achievements, and **direct PDF resume viewer**.
-- Review decisions: Update candidate status (`Applied` → `Shortlisted` → `Interview` → `Hired` / `Rejected`) with private review notes and feedback.
-
-### 5. 👤 Job Seeker Experience
-- Register with valid email address to receive real-time updates.
-- Dynamic job search with filters for keywords, location, job type, and minimum match score slider.
-- Verified Employer badges highlighting authenticated companies.
-- Interactive profile manager: add skills, internships, projects, hackathons, and competitive exams.
-- PDF resume uploader with instant skill extraction parser.
-- **My Applications** dashboard to monitor review progress, match breakdowns, and hiring feedback in real time.
+A full-stack, production-grade **MERN (MongoDB, Express, React 18, Node.js)** enterprise talent acquisition platform featuring algorithmic resume matching, automated candidate ranking, strict multi-vector duplicate application prevention, corporate work-email enforcement, and automated interview dispatch.
 
 ---
 
-## 🏃 Quick Start Guide
+## 🏗️ 1. Architecture & Tech Stack
+
+- **Backend**: Node.js 18+, Express, MongoDB with Mongoose, JWT authentication, bcryptjs, Multer (PDF validation, 2 MB max), pdf-parse, Nodemailer (with Brevo/Gmail/simulation fallbacks), Helmet, express-rate-limit, CORS, dotenv, express-validator.
+- **Frontend**: React 18 with Vite, React Router v6, Axios, plain responsive CSS (`styles.css`) supporting Dark/Light mode, and accessible WCAG focus states.
+- **Testing**: Jest 30 & Supertest integration suite with 100% passing test coverage (31 unit and API integration tests).
+
+```
+job-portal/
+├── server/
+│   ├── config/              # Database connection & email domain blocklists
+│   ├── controllers/         # Auth, Seeker Profile, Jobs, Applications, Notifications
+│   ├── middleware/          # JWT protect, role authorization, Multer PDF upload
+│   ├── models/              # User (Seeker), Company, Job, Application, Notification
+│   ├── routes/              # Express API router definitions
+│   ├── tests/               # Jest & Supertest automated test suites
+│   ├── utils/               # Matcher engine, PDF parser, email service
+│   ├── seed.js              # Database seed script (2 companies, 5 jobs, 10 seekers)
+│   ├── server.js            # Express app entry point
+│   ├── .env.example         # Server environment variables template
+│   └── package.json
+├── client/
+│   ├── src/
+│   │   ├── api/             # Axios instance with auth interceptor
+│   │   ├── context/         # AuthContext (Seeker & Company state)
+│   │   ├── pages/           # Seeker & Company pages
+│   │   ├── App.jsx          # Route guards & responsive layout
+│   │   ├── main.jsx
+│   │   └── styles.css       # Full responsive styles with Light/Dark mode
+│   ├── .env.example
+│   └── package.json
+├── dev.js                   # Dual dev server runner (Backend + Frontend)
+├── README.md
+└── package.json
+```
+
+---
+
+## 🚀 2. Quickstart & Installation
 
 ### Prerequisites
-- Node.js 18+ (tested on Node v22)
-- MongoDB running locally on port 27017 (or MongoDB Atlas URI)
+- **Node.js**: v18.0.0 or higher
+- **MongoDB**: v6.0+ running on `mongodb://127.0.0.1:27017`
 
-### 1. Launch with Unified Dev Runner (Single Command)
-From the project root directory:
+### Step 1: Install Dependencies
 ```bash
-npm run dev
+# Install root, backend, and frontend packages
+npm install
+npm --prefix server install
+npm --prefix client install
 ```
-Starts both:
-- **Backend API Server**: `http://localhost:5001`
-- **Frontend Web Portal**: `http://localhost:5173`
 
-*(Alternatively, Express serves the compiled frontend directly at `http://localhost:5001`)*
+### Step 2: Environment Configuration
+Create `.env` inside `server/`:
+```bash
+cp server/.env.example server/.env
+```
+Default configuration:
+```env
+PORT=5001
+MONGO_URI=mongodb://127.0.0.1:27017/job_portal
+JWT_SECRET=smart_job_portal_super_secret_jwt_key_2026
+CLIENT_URL=http://localhost:5173
+```
+*(If SMTP credentials are not supplied, transactional emails are automatically logged to the terminal via the simulation transport without crashing).*
 
-### 2. Seed Database with Verified Company & Candidates
+### Step 3: Seed the Database
+Populates the database with **2 verified companies**, **5 active job vacancies**, and **10 candidate profiles** with pre-computed smart match scores:
 ```bash
 npm run seed
 ```
 
-### 3. Run Automated Integration Test Suite
+### Step 4: Run the Development Server
+Starts the Express API on port `5001` and Vite frontend on `http://localhost:5173`:
 ```bash
-npm test
+npm run dev
 ```
-Verifies:
-- Corporate email check for HR (`isCompanyEmail`) vs candidate email validation
-- Company business ID proof and verification schema
-- Skill matcher algorithm calculations
-- Database duplicate application constraints (E11000 key conflict)
-- HR candidate ranking order
-- Application status updates and feedback persistence
 
 ---
 
-## 🔑 Pre-Seeded Demo Accounts (One-Click Login available on UI)
+## 🧪 3. Running Automated Tests
 
-| Role | Email | Password | Details |
-|---|---|---|---|
-| **HR / Recruiter** | `hr@techcorp.com` | `password123` | HR Director at TechCorp Solutions (Verified Employer with ID Proof) |
-| **Senior Candidate** | `arun@example.com` | `password123` | Senior MERN Dev (GATE CS #142, Hackathon Winner, 3.5 yrs exp) |
-| **Frontend Candidate**| `priya@example.com`| `password123` | UI/UX Specialist (Hackathon Best Design, 2 yrs exp) |
-| **Junior Candidate** | `vikram@example.com`| `password123` | CS Graduate (Codeforces Expert, SDE Intern, Projects) |
+Run the full Jest & Supertest test suite (all 31 unit & integration tests):
+```bash
+npm test
+```
+The test suite covers:
+- **Auth**: password complexity validation, corporate email blocklist, JWT signing, password comparison.
+- **Profile**: subdocument CRUD, case-insensitive skill deduplication, duplicate project prevention.
+- **Jobs & Mandatory Requirements**: mandatory field computation, blocking candidates lacking experience/GitHub.
+- **Duplicate Prevention Rules**: same user/job duplicate block, multi-apply to different jobs, duplicate resume file hash block, duplicate profile fingerprint block, and parallel concurrent apply requests.
+- **Review & Notifications**: auto-shortlist by threshold, interview calls, rejection improvement reasons, and company ownership security.
+
+---
+
+## 👥 4. Demo Credentials
+
+### Company Accounts (Admin Page)
+| Company Name | Mail ID | Password | Role |
+| :--- | :--- | :--- | :--- |
+| **TechCorp Cloud Systems** | `recruiting@techcorp.io` | `Password123` | Company Admin |
+| **FinScale Payments** | `careers@finscale.com` | `Password123` | Company Admin |
+
+### Job Seeker Accounts
+| Seeker Name | Mail ID | Password | Key Strengths |
+| :--- | :--- | :--- | :--- |
+| **Arun Kumar** | `arun@example.com` | `Password123` | Senior MERN Developer, Hackathon Winner (High Match) |
+| **Priya Sharma** | `priya@example.com` | `Password123` | Frontend React & UI Specialist (High Match for Frontend) |
+| **Vikram Patel** | `vikram@example.com` | `Password123` | Junior SWE Graduate (High Match for Junior opening) |
+
+---
+
+## 📋 5. Step-by-Step Demo Walkthrough
+
+### 5.1 Multi-Apply Validation
+1. Sign in as **Arun Kumar** (`arun@example.com` / `Password123`).
+2. Navigate to **Explore Jobs**.
+3. Apply to **"Senior Full Stack MERN Developer"** using your PDF resume &rarr; Application created with 85%+ score.
+4. Navigate back to **Explore Jobs** and click **"Junior Software Engineer"** &rarr; Notice that Arun can apply to multiple different job openings without restriction.
+
+### 5.2 Duplicate Prevention Enforcement
+1. While logged in as Arun, try to apply again to **"Senior Full Stack MERN Developer"**.
+   - Result: Form displays "✓ Applied" and backend blocks the request with **HTTP 409: Duplicate application blocked**.
+2. Register a new account (`copycat@testmail.com`) and try to submit the exact same resume PDF file to that same job.
+   - Result: Blocked with **HTTP 409: Duplicate resume checksum detected**.
+3. Register another account using Arun's same GitHub URL (`https://github.com/arunkumar-dev`).
+   - Result: Blocked with **HTTP 409: Duplicate candidate profile fingerprint detected**.
+
+### 5.3 Mandatory Field Enforcement
+1. Create a fresh candidate account with 0 years of experience.
+2. View **"Senior Full Stack MERN Developer"** (which mandates 2+ years of experience and GitHub).
+3. Try to apply &rarr; Request is blocked with **HTTP 400: Mandatory requirements not satisfied (requires 2 years experience and GitHub URL)**.
+
+### 5.4 Match Score & Ordered Improvement Suggestions
+1. As Arun, open the job details for **"DevOps & Cloud Infrastructure Engineer"**.
+2. View the **Smart Match Breakdown** &rarr; displays point allocations across Required Skills (35), Preferred (10), Projects (15), Experience (10), Hackathons (8), and Academics (5).
+3. Inspect the **Areas to Improve** list &rarr; suggestions are strictly sorted by points gained in descending order (e.g. `+14 pts` for AWS/Kubernetes proficiency, `+3 pts` for hackathon rankings).
+
+### 5.5 Company Review & Shortlist Interview Call
+1. Sign in as **TechCorp** (`recruiting@techcorp.io` / `Password123`).
+2. Open **Employer Dashboard** and click **Review Ranked Applicants** on the MERN opening.
+3. Applicants are automatically sorted with the highest match score at the top.
+4. Click **Update Status / Schedule** on a candidate &rarr; select **Schedule Interview**, enter Date/Time/Google Meet link, and submit.
+5. Sign in as that candidate &rarr; check **Alerts (Navbar notification pill)** and **My Applications** to review the official interview call.
+
+### 5.6 Automated Threshold Shortlist & Rejection Feedback
+1. On the Company Applicants page, click **⚡ Auto-Shortlist by Score Threshold**.
+2. Enter score threshold `75`, check *"Also automatically reject applicants below threshold"*, and click **Run Auto-Shortlist**.
+3. Candidates with score &ge; 75% are instantly shortlisted with interview invitations; candidates below 75% receive rejection notices with auto-generated improvement areas.
+
+---
+
+## ⚖️ 6. Assumptions & Architectural Decisions
+
+1. **Company vs Platform Admin**: The brief noted *"the Admin page in my notes: a company account that manages its own jobs and applicants. Company accounts and seeker accounts are separate. Nobody can self-register as a platform admin."* Therefore, Company accounts possess administrative powers over their own job vacancies, applicant pipelines, and interview schedules, strictly isolated by tenant company ID.
+2. **Mandatory Fields Computation**: A Mongoose pre-save hook on the Job model dynamically inspects all filled constraint fields (skills, experience, CGPA, GitHub, LinkedIn, projects) and persists a `mandatoryFields` array enforced on the apply route.
+3. **Email Resilience**: Email dispatch uses asynchronous execution with comprehensive try/catch guards. In environments without SMTP keys, transactional emails gracefully fall back to formatted console logging so no API call ever crashes due to third-party mailer timeouts.
