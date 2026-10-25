@@ -1,5 +1,8 @@
 # ⚡ Smart Job Portal with Intelligent Resume Matching
 
+[![CI Pipeline](https://github.com/jeyaraman446/job-portal/actions/workflows/ci.yml/badge.svg)](https://github.com/jeyaraman446/job-portal/actions/workflows/ci.yml)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/jeyaraman446/job-portal)
+
 A full-stack, production-grade **MERN (MongoDB, Express, React 18, Node.js)** enterprise talent acquisition platform featuring algorithmic resume matching, automated candidate ranking, strict multi-vector duplicate application prevention, corporate work-email enforcement, and automated interview dispatch.
 
 ---
