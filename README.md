@@ -160,3 +160,31 @@ The test suite covers:
 1. **Company vs Platform Admin**: The brief noted *"the Admin page in my notes: a company account that manages its own jobs and applicants. Company accounts and seeker accounts are separate. Nobody can self-register as a platform admin."* Therefore, Company accounts possess administrative powers over their own job vacancies, applicant pipelines, and interview schedules, strictly isolated by tenant company ID.
 2. **Mandatory Fields Computation**: A Mongoose pre-save hook on the Job model dynamically inspects all filled constraint fields (skills, experience, CGPA, GitHub, LinkedIn, projects) and persists a `mandatoryFields` array enforced on the apply route.
 3. **Email Resilience**: Email dispatch uses asynchronous execution with comprehensive try/catch guards. In environments without SMTP keys, transactional emails gracefully fall back to formatted console logging so no API call ever crashes due to third-party mailer timeouts.
+
+---
+
+## ☁️ 7. GitHub Setup & Cloud Deployment
+
+### 7.1 Push to GitHub
+```bash
+# Option 1: Via GitHub CLI
+gh auth login -w
+gh repo create job-portal --public --source=. --remote=origin --push
+
+# Option 2: Standard Git
+git remote add origin https://github.com/<your-username>/job-portal.git
+git branch -M main
+git push -u origin main
+```
+
+### 7.2 Deploy to Render (1-Click Full Stack)
+1. Sign up on [Render.com](https://render.com).
+2. Create **New + → Blueprint** and connect your GitHub repository.
+3. Render automatically picks up `render.yaml` to build and serve both the API and Vite React frontend from a single web service.
+4. Add your **MongoDB Atlas** connection string as `MONGO_URI`.
+
+### 7.3 Docker Container Deployment
+```bash
+docker build -t smart-job-portal .
+docker run -d -p 5001:5001 -e MONGO_URI="<your-mongodb-atlas-uri>" -e JWT_SECRET="<secret>" smart-job-portal
+```
