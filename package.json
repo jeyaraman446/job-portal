@@ -5,10 +5,13 @@
   "scripts": {
     "dev": "node dev.js",
     "start": "node server/server.js",
-    "build": "npm --prefix server install && npm --prefix client install && npm --prefix client run build",
+    "build": "npm --prefix server install && npm --prefix client install --include=dev && npm --prefix client run build",
     "seed": "npm --prefix server run seed",
     "test": "npm --prefix server test",
     "install:all": "npm --prefix server install && npm --prefix client install"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "keywords": ["mern", "job-portal", "resume-matching", "mongodb", "react", "express", "node"],
   "author": "Jeyaraman",

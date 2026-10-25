@@ -59,8 +59,8 @@ const PORT = process.env.PORT || 5001;
 if (require.main === module) {
   connectDB()
     .then(() => {
-      app.listen(PORT, () => {
-        console.log(`🚀 Smart Job Portal API running on http://localhost:${PORT}`);
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`🚀 Smart Job Portal API running on http://0.0.0.0:${PORT}`);
         if (fs.existsSync(clientDist)) {
           console.log(`🌐 Full-stack Web Portal accessible at http://localhost:${PORT}`);
         }
